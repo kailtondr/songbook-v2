@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import Link from 'next/link';
 
 export default function PlaylistsPage() {
+  // On type explicitement en any[] pour éviter les erreurs de build
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -19,7 +20,8 @@ export default function PlaylistsPage() {
   useEffect(() => {
     const q = query(collection(db, "playlists"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({
+      // CORRECTION ICI : on force le type 'any' pour dire à TypeScript que 'date' existe
+      const list: any[] = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
