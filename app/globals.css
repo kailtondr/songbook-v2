@@ -1,26 +1,43 @@
 @import "tailwindcss";
 
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+/* 1. Couleurs par défaut (Mode Clair) */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* 2. Couleurs Mode Sombre (Activées par la classe .dark) */
+/* C'est ICI que ça change : on utilise .dark au lieu de @media */
+:root[class~="dark"] {
+  --background: #0a0a0a; /* Gris très sombre (presque noir) */
+  --foreground: #ededed; /* Blanc cassé */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Sécurité pour que Tailwind v4 comprenne bien le sélecteur .dark */
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* 3. Styles de base */
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overscroll-behavior-y: none; /* Empêche le rebond élastique blanc sur mobile */
+}
+
+/* 4. Utilitaires indispensables (Menu & Mobile) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }

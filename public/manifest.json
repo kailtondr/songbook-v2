@@ -1,7 +1,7 @@
 {
-  "name": "Songbook Chantez",
-  "short_name": "Songbook",
-  "description": "Songbook Shalom",
+  "name": "Songbook Chantez V.2",
+  "short_name": "Songbook V.2",
+  "description": "Chantez le Seigneur dans la joie !",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
