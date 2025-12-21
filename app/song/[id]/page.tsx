@@ -1,6 +1,5 @@
 'use client';
 
-// ... (Imports identiques)
 import { useEffect, useState, use, useMemo, useRef } from 'react';
 import { doc, getDoc, collection, query, orderBy, getDocs, updateDoc, arrayUnion, arrayRemove, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -8,9 +7,9 @@ import { useAuth } from '@/lib/authContext';
 import { parseChordPro, transposeChord, guessPreferFlats, ChordLine, ChordToken } from '@/lib/musicEngine';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // <--
+import { useRouter } from 'next/navigation';
 
-// ... (Icônes et Interfaces identiques) ...
+// --- Icônes ---
 const IconBack = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
 const IconEdit = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>;
 const IconPlaylistAdd = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
@@ -22,6 +21,7 @@ const IconPause = () => <svg className="w-6 h-6" fill="currentColor" viewBox="0 
 const IconPlus = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>;
 const IconMinus = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4"/></svg>;
 const IconPalette = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>;
+const IconFullscreen = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>;
 
 interface SongData {
     id: string;
@@ -41,7 +41,7 @@ type ChordColorKey = keyof typeof CHORD_COLORS;
 export default function SongPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user } = useAuth();
-  const router = useRouter(); // <--
+  const router = useRouter(); 
   useWakeLock();
 
   const [status, setStatus] = useState<'LOADING' | 'SUCCESS' | 'ERROR'>('LOADING');
@@ -49,7 +49,7 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const [song, setSong] = useState<SongData | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // ... (États identiques)
+  // Affichage
   const [semitones, setSemitones] = useState(0);
   const [showChords, setShowChords] = useState(true);
   const [fontSize, setFontSize] = useState(16);
@@ -57,7 +57,7 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const [selectedFont, setSelectedFont] = useState<keyof typeof FONTS>('helvetica');
   const [chordColor, setChordColor] = useState<ChordColorKey>('red');
 
-  // ... (États Playlist & Scroll identiques)
+  // UI States
   const [showModal, setShowModal] = useState(false);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
@@ -66,11 +66,22 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(40); 
   const displaySpeed = Math.round((250 - scrollSpeed) / 2.45);
+  
+  // État Plein Écran
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const lastTap = useRef<number>(0);
 
-  const getYoutubeId = (url: string) => { const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/); return (match && match[2].length === 11) ? match[2] : null; };
-  const getCleanAudioUrl = (url: string) => { if(!url) return ""; if (url.includes('/s/') && !url.includes('/download')) return url.endsWith('/') ? url + 'download' : url + '/download'; return url; };
+  const getYoutubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+  const getCleanAudioUrl = (url: string) => {
+    if(!url) return "";
+    if (url.includes('/s/') && !url.includes('/download')) return url.endsWith('/') ? url + 'download' : url + '/download';
+    return url;
+  };
 
-  // ... (useEffect Chargement identique)
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -79,52 +90,168 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setSong({ id: docSnap.id, titre: data.titre || "Sans titre", artiste: data.artiste || "Inconnu", contenu: data.contenu || "", cle: data.cle || "C", categorie: data.categorie || "", youtube: data.youtube, audio: data.audio });
+          setSong({ 
+              id: docSnap.id, 
+              titre: data.titre || "Sans titre", 
+              artiste: data.artiste || "Inconnu", 
+              contenu: data.contenu || "",
+              cle: data.cle || "C",
+              categorie: data.categorie || "",
+              youtube: data.youtube,
+              audio: data.audio
+          });
           if (data.cle && guessPreferFlats(data.cle)) setPreferFlat(true);
           setStatus('SUCCESS');
-        } else { setErrorMessage("Chant introuvable"); setStatus('ERROR'); }
-        if (user) { const userDoc = await getDoc(doc(db, "users", user.uid)); if (userDoc.exists()) { const favorites = userDoc.data().favorites || []; setIsFavorite(favorites.includes(id)); } }
-      } catch (err: any) { setErrorMessage(err.message); setStatus('ERROR'); }
+        } else {
+          setErrorMessage("Chant introuvable");
+          setStatus('ERROR');
+        }
+        if (user) {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+                const favorites = userDoc.data().favorites || [];
+                setIsFavorite(favorites.includes(id));
+            }
+        }
+      } catch (err: any) {
+        setErrorMessage(err.message);
+        setStatus('ERROR');
+      }
     };
     loadData();
   }, [id, user]);
 
-  // --- NAVIGATION LIENS ---
-  const goToArtist = () => {
-    if(song?.artiste) router.push(`/artist/${encodeURIComponent(song.artiste)}`);
+  const goToArtist = () => { if(song?.artiste) router.push(`/artist/${encodeURIComponent(song.artiste)}`); };
+  
+  const toggleFavorite = async () => {
+    if (!user) return alert("Connectez-vous pour ajouter aux favoris.");
+    const newState = !isFavorite;
+    setIsFavorite(newState);
+    try {
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, { email: user.email }, { merge: true });
+        await updateDoc(userRef, { favorites: newState ? arrayUnion(id) : arrayRemove(id) });
+    } catch (e) {
+        setIsFavorite(!newState);
+        alert("Erreur réseau");
+    }
   };
 
-  // ... (toggleFavorite, toggleChordColor, useEffect prefs...)
-  const toggleFavorite = async () => { if (!user) return alert("Connectez-vous pour ajouter aux favoris."); const newState = !isFavorite; setIsFavorite(newState); try { const userRef = doc(db, "users", user.uid); await setDoc(userRef, { email: user.email }, { merge: true }); await updateDoc(userRef, { favorites: newState ? arrayUnion(id) : arrayRemove(id) }); } catch (e) { setIsFavorite(!newState); alert("Erreur réseau"); } };
-  const toggleChordColor = () => { const colors: ChordColorKey[] = ['red', 'orange', 'blue', 'black']; setChordColor(colors[(colors.indexOf(chordColor) + 1) % colors.length]); };
-  
-  useEffect(() => { if (typeof window !== 'undefined') { const savedFont = localStorage.getItem('sb_font') as keyof typeof FONTS; const savedColor = localStorage.getItem('sb_chordColor') as ChordColorKey; if (savedFont && FONTS[savedFont]) setSelectedFont(savedFont); if (savedColor && CHORD_COLORS[savedColor]) setChordColor(savedColor); } }, []);
+  const toggleChordColor = () => {
+      const colors: ChordColorKey[] = ['red', 'orange', 'blue', 'black'];
+      const currentIndex = colors.indexOf(chordColor);
+      const nextIndex = (currentIndex + 1) % colors.length;
+      setChordColor(colors[nextIndex]);
+  };
+
+  // --- NOUVEAU : Sync Body Class pour cacher le Menu ---
+  useEffect(() => {
+    if (isFullScreen) document.body.classList.add('fullscreen');
+    else document.body.classList.remove('fullscreen');
+    return () => document.body.classList.remove('fullscreen');
+  }, [isFullScreen]);
+
+  // Double Tap Handler
+  const handleDoubleTap = () => {
+      const now = Date.now();
+      const DOUBLE_TAP_DELAY = 300;
+      if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+          setIsFullScreen(!isFullScreen);
+      }
+      lastTap.current = now;
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const savedFont = localStorage.getItem('sb_font') as keyof typeof FONTS;
+        const savedColor = localStorage.getItem('sb_chordColor') as ChordColorKey;
+        if (savedFont && FONTS[savedFont]) setSelectedFont(savedFont);
+        if (savedColor && CHORD_COLORS[savedColor]) setChordColor(savedColor);
+    }
+  }, []);
+
   useEffect(() => { localStorage.setItem('sb_font', selectedFont); }, [selectedFont]);
   useEffect(() => { localStorage.setItem('sb_chordColor', chordColor); }, [chordColor]);
-  
-  useEffect(() => { let scrollInterval: NodeJS.Timeout; if (isScrolling) { scrollInterval = setInterval(() => { window.scrollBy(0, 1); if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight) setIsScrolling(false); }, scrollSpeed); } return () => clearInterval(scrollInterval); }, [isScrolling, scrollSpeed]);
-  const toggleScroll = () => setIsScrolling(!isScrolling);
-  const changeSpeed = (delta: number) => { setScrollSpeed(prev => { const next = prev - (delta * 2); return Math.max(5, Math.min(250, next)); }); };
-  const openPlaylistModal = async () => { setShowModal(true); setIsCreating(false); setNewPlaylistName(''); if (playlists.length > 0) return; setLoadingPlaylists(true); try { const q = query(collection(db, "playlists"), orderBy("createdAt", "desc")); const snap = await getDocs(q); setPlaylists(snap.docs.map(d => ({ id: d.id, ...d.data() }))); } catch (e) { console.error(e); } finally { setLoadingPlaylists(false); } };
-  const addToPlaylist = async (playlistId: string, playlistName: string) => { try { await updateDoc(doc(db, "playlists", playlistId), { songs: arrayUnion(id) }); alert(`Ajouté à "${playlistName}" ! ✅`); setShowModal(false); } catch (e) { alert("Erreur ajout"); } };
-  const createAndAdd = async (e: React.FormEvent) => { e.preventDefault(); if(!newPlaylistName.trim()) return; try { await addDoc(collection(db, "playlists"), { name: newPlaylistName, createdAt: new Date(), songs: [id] }); alert(`Playlist créée ! 🎉`); setShowModal(false); setPlaylists([]); } catch (error) { alert("Erreur création"); } };
 
-  // ... (Rendu Structuré Inchangé)
+  useEffect(() => {
+    let scrollInterval: NodeJS.Timeout;
+    if (isScrolling) {
+      scrollInterval = setInterval(() => {
+        window.scrollBy(0, 1);
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight) setIsScrolling(false);
+      }, scrollSpeed);
+    }
+    return () => clearInterval(scrollInterval);
+  }, [isScrolling, scrollSpeed]);
+
+  const toggleScroll = () => setIsScrolling(!isScrolling);
+  const changeSpeed = (delta: number) => {
+    setScrollSpeed(prev => { const next = prev - (delta * 2); return Math.max(5, Math.min(250, next)); });
+  };
+
+  const openPlaylistModal = async () => {
+    setShowModal(true); setIsCreating(false); setNewPlaylistName('');
+    if (playlists.length > 0) return;
+    setLoadingPlaylists(true);
+    try {
+      const q = query(collection(db, "playlists"), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      setPlaylists(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error(e); } finally { setLoadingPlaylists(false); }
+  };
+  const addToPlaylist = async (playlistId: string, playlistName: string) => {
+    try { await updateDoc(doc(db, "playlists", playlistId), { songs: arrayUnion(id) }); alert(`Ajouté à "${playlistName}" ! ✅`); setShowModal(false); } catch (e) { alert("Erreur ajout"); }
+  };
+  const createAndAdd = async (e: React.FormEvent) => {
+    e.preventDefault(); if(!newPlaylistName.trim()) return;
+    try { await addDoc(collection(db, "playlists"), { name: newPlaylistName, createdAt: new Date(), songs: [id] }); alert(`Playlist créée ! 🎉`); setShowModal(false); setPlaylists([]); } catch (error) { alert("Erreur création"); }
+  };
+
+  // --- RENDU ---
   const structuredContent = useMemo(() => {
     if (!song?.contenu) return [];
+    
     const flatLines = parseChordPro(song.contenu);
     const sections: { type: 'normal' | 'chorus'; lines: any[][] }[] = [];
     let currentSection: { type: 'normal' | 'chorus'; lines: any[][] } = { type: 'normal', lines: [] };
+
     const groupLineTokens = (line: ChordLine) => {
         const groups: { chord?: ChordToken, lyrics?: ChordToken, token?: ChordToken }[] = [];
         let i = 0;
         while (i < line.length) {
             const token = line[i];
-            if (token.type === 'chord') { const next = line[i + 1]; if (next && next.type === 'lyrics') { groups.push({ chord: token, lyrics: next }); i += 2; } else { groups.push({ chord: token }); i++; } } else if (token.type === 'lyrics') { groups.push({ lyrics: token }); i++; } else { groups.push({ token: token }); i++; }
+            if (token.type === 'chord') {
+                const next = line[i + 1];
+                if (next && next.type === 'lyrics') {
+                    groups.push({ chord: token, lyrics: next });
+                    i += 2;
+                } else {
+                    groups.push({ chord: token });
+                    i++;
+                }
+            } else if (token.type === 'lyrics') {
+                groups.push({ lyrics: token });
+                i++;
+            } else {
+                groups.push({ token: token });
+                i++;
+            }
         }
         return groups;
     };
-    flatLines.forEach(line => { const firstToken = line[0]; if (firstToken?.type === 'chorus_start') { if (currentSection.lines.length > 0) sections.push(currentSection); currentSection = { type: 'chorus', lines: [] }; } else if (firstToken?.type === 'chorus_end') { if (currentSection.lines.length > 0) sections.push(currentSection); currentSection = { type: 'normal', lines: [] }; } else { currentSection.lines.push(groupLineTokens(line)); } });
+
+    flatLines.forEach(line => {
+        const firstToken = line[0];
+        if (firstToken?.type === 'chorus_start') {
+            if (currentSection.lines.length > 0) sections.push(currentSection);
+            currentSection = { type: 'chorus', lines: [] };
+        } else if (firstToken?.type === 'chorus_end') {
+            if (currentSection.lines.length > 0) sections.push(currentSection);
+            currentSection = { type: 'normal', lines: [] };
+        } else {
+            currentSection.lines.push(groupLineTokens(line));
+        }
+    });
     if (currentSection.lines.length > 0) sections.push(currentSection);
     return sections;
   }, [song]);
@@ -133,8 +260,12 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   if (status === 'SUCCESS' && song) {
     try {
       contentDisplay = structuredContent.map((section, secIdx) => (
-        <div key={secIdx} className={`mb-2 ${section.type === 'chorus' ? 'pl-4 border-l-4 border-orange-500 bg-orange-50/50 dark:bg-orange-900/10 rounded-r-xl py-2 shadow-sm my-3' : ''}`}>
+        <div 
+            key={secIdx} 
+            className={`mb-2 ${section.type === 'chorus' ? 'pl-4 border-l-4 border-orange-500 bg-orange-50/50 dark:bg-orange-900/10 rounded-r-xl py-2 shadow-sm my-3' : ''}`}
+        >
             {section.type === 'chorus' && <div className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest mb-1 opacity-70">Refrain</div>}
+
             {section.lines.map((line, i) => (
                 <div key={i} className={`flex flex-wrap items-end ${FONTS[selectedFont]} leading-relaxed transition-all ${!showChords ? 'mb-1' : 'mb-3'}`}>
                     {line.map((group, j) => {
@@ -144,12 +275,20 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
                             if (group.token.type === 'space') return <div key={j} className="w-full h-2"></div>;
                             return null;
                         }
+
                         const chordVal = group.chord ? (showChords ? transposeChord(group.chord.originalChord!, semitones, preferFlat) : null) : null;
                         const lyricsVal = group.lyrics ? group.lyrics.value : "\u00A0";
+
                         return (
-                            <div key={j} className="flex flex-col min-w-[2px]">
-                                {showChords && ( <span className={`text-[0.95em] font-bold mb-0.5 select-none leading-none h-[1.2em] transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>{chordVal || "."}</span> )}
-                                <span className={`text-slate-800 dark:text-slate-200 print:text-black whitespace-pre ${section.type === 'chorus' ? 'font-bold text-slate-900 dark:text-white' : ''}`}>{lyricsVal}</span>
+                            <div key={j} className="flex flex-col items-center min-w-[2px]">
+                                {showChords && (
+                                    <span className={`text-[0.95em] font-bold mb-0.5 select-none leading-none h-[1.2em] whitespace-nowrap transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>
+                                        {chordVal || "."}
+                                    </span>
+                                )}
+                                <span className={`text-slate-800 dark:text-slate-200 print:text-black whitespace-pre ${section.type === 'chorus' ? 'font-black text-slate-900 dark:text-white' : ''}`}>
+                                    {lyricsVal}
+                                </span>
                             </div>
                         );
                     })}
@@ -167,40 +306,46 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const hasMedia = !!(yId || song?.audio);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 print:bg-white pb-40 text-slate-800 dark:text-slate-200 relative transition-colors duration-300">
+    <div 
+        className="min-h-screen bg-white dark:bg-slate-950 print:bg-white pb-40 text-slate-800 dark:text-slate-200 relative transition-colors duration-300"
+        onClick={handleDoubleTap} 
+    >
       
       {/* HEADER */}
-      <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-gray-200 dark:border-slate-800 px-4 py-3 flex items-center gap-3 shadow-sm transition-transform duration-300 print:hidden" style={{ transform: isScrolling ? 'translateY(-100%)' : 'translateY(0)' }}>
+      <header 
+        className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-gray-200 dark:border-slate-800 px-4 py-3 flex items-center gap-3 shadow-sm transition-transform duration-300 print:hidden" 
+        style={{ transform: (isScrolling || isFullScreen) ? 'translateY(-100%)' : 'translateY(0)' }}
+      >
         <Link href="/" className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300"><IconBack /></Link>
         <div className="flex-1 overflow-hidden">
-          <h1 className="text-lg font-bold truncate text-slate-900 dark:text-white">{song?.titre}</h1>
-          
-          {/* ARTISTE CLIQUABLE */}
-          <button 
-            onClick={goToArtist}
-            className="text-xs text-orange-600 dark:text-orange-400 truncate font-medium hover:underline text-left block w-full"
-          >
-            {song?.artiste}
-          </button>
+          {/* TITRE EN MAJUSCULE */}
+          <h1 className="text-lg font-bold truncate text-slate-900 dark:text-white uppercase">{song?.titre}</h1>
+          <button onClick={goToArtist} className="text-xs text-orange-600 dark:text-orange-400 truncate font-medium hover:underline text-left block w-full">{song?.artiste}</button>
         </div>
+        <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300" title="Plein Écran"><IconFullscreen /></button>
         <button onClick={toggleFavorite} className="p-2 rounded-full hover:bg-red-50 dark:hover:bg-slate-800 transition-colors"><IconHeart filled={isFavorite} /></button>
         <button onClick={openPlaylistModal} className="p-2 rounded-full hover:bg-orange-50 dark:hover:bg-slate-800 text-gray-400 dark:text-gray-500 hover:text-orange-600 dark:hover:text-orange-400"><IconPlaylistAdd /></button>
         <Link href={`/edit/${id}`} className="p-2 rounded-full hover:bg-orange-50 dark:hover:bg-slate-800 text-gray-400 dark:text-gray-500 hover:text-orange-600 dark:hover:text-orange-400"><IconEdit /></Link>
       </header>
 
-      {/* CONTROLS (Identique) */}
-      <div className={`bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 sticky top-[61px] z-10 overflow-x-auto no-scrollbar py-2 px-4 flex gap-3 transition-transform duration-300 print:hidden ${isScrolling ? '-translate-y-[150%]' : 'translate-y-0'}`}>
+      {/* CONTROLS */}
+      <div className={`bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 sticky top-[61px] z-10 overflow-x-auto no-scrollbar py-2 px-4 flex gap-3 transition-transform duration-300 print:hidden ${(isScrolling || isFullScreen) ? '-translate-y-[200%]' : 'translate-y-0'}`}>
+         
          <div className="flex bg-white dark:bg-slate-800 rounded border border-gray-300 dark:border-slate-700 shadow-sm h-9 items-center">
             <button onClick={() => setSemitones(s => s - 1)} className="px-3 h-full border-r border-gray-300 dark:border-slate-700 font-bold hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">-</button>
             <button onClick={() => setSemitones(0)} className="px-2 h-full text-xs font-mono text-gray-500 dark:text-gray-400">Key</button>
             <button onClick={() => setSemitones(s => s + 1)} className="px-3 h-full border-l border-gray-300 dark:border-slate-700 font-bold hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">+</button>
          </div>
+         
          <button onClick={() => setShowChords(!showChords)} className={`px-3 h-9 rounded border shadow-sm text-sm font-bold transition-colors ${showChords ? 'bg-orange-600 text-white border-orange-700' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-700'}`}>
             {showChords ? 'ON' : 'OFF'}
          </button>
+
          <button onClick={toggleChordColor} className={`px-3 h-9 rounded border shadow-sm text-sm font-bold transition-colors flex items-center justify-center bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300`}>
-            <div className={`w-3 h-3 rounded-full mr-1 ${chordColor === 'red' ? 'bg-red-500' : chordColor === 'orange' ? 'bg-orange-500' : chordColor === 'blue' ? 'bg-blue-500' : 'bg-black dark:bg-white'}`}></div><IconPalette />
+            <div className={`w-3 h-3 rounded-full mr-1 ${chordColor === 'red' ? 'bg-red-500' : chordColor === 'orange' ? 'bg-orange-500' : chordColor === 'blue' ? 'bg-blue-500' : 'bg-black dark:bg-white'}`}></div>
+            <IconPalette />
          </button>
+         
          <div className="flex bg-white dark:bg-slate-800 rounded border border-gray-300 dark:border-slate-700 shadow-sm h-9 items-center ml-auto">
             <select className="h-full px-2 text-[10px] font-bold bg-transparent text-slate-600 dark:text-slate-300 border-r border-gray-300 dark:border-slate-700 outline-none uppercase" value={selectedFont} onChange={(e) => setSelectedFont(e.target.value as keyof typeof FONTS)}>
                 <option value="helvetica">Helv.</option><option value="georgia">Geor.</option><option value="courier">Cour.</option>
@@ -211,13 +356,13 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
       </div>
 
       <div className="hidden print:block text-center mb-8 pt-4 border-b pb-4">
-          <h1 className="text-3xl font-bold text-black">{song?.titre}</h1>
+          <h1 className="text-3xl font-bold text-black uppercase">{song?.titre}</h1>
           <p className="text-lg text-gray-600">{song?.artiste} — Clé: {transposeChord(song?.cle || 'C', semitones, preferFlat)}</p>
       </div>
 
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-start gap-0 lg:gap-8 lg:p-6">
         {hasMedia && (
-            <aside className={`w-full lg:w-[400px] flex-shrink-0 order-1 lg:order-2 lg:sticky lg:top-[140px] transition-all duration-300 print:hidden ${isScrolling ? 'opacity-50 hover:opacity-100' : 'opacity-100'}`}>
+            <aside className={`w-full lg:w-[400px] flex-shrink-0 order-1 lg:order-2 lg:sticky lg:top-[140px] transition-all duration-300 print:hidden ${isScrolling || isFullScreen ? 'opacity-50 hover:opacity-100' : 'opacity-100'}`}>
                 <div className="bg-gray-50 dark:bg-slate-900 lg:rounded-xl lg:border border-gray-200 dark:border-slate-800 overflow-hidden shadow-sm">
                     <div className="p-2 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center lg:hidden"><span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase px-2">Lecteur</span></div>
                     <div className="p-3 space-y-3">
@@ -232,7 +377,6 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
             {contentDisplay}
             <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800 text-center pb-8 flex justify-center items-center gap-4 flex-wrap">
                 <p className="text-gray-400 dark:text-gray-500 text-sm italic">© {song?.artiste}</p>
-                {/* CATEGORIE (Déjà géré dans le rendu précédent) */}
             </div>
         </main>
       </div>
@@ -245,12 +389,11 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
                  <button onClick={() => changeSpeed(-1)} className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 flex items-center justify-center active:bg-gray-300 transition-colors"><IconMinus /></button>
              </div>
          )}
-         <button onClick={toggleScroll} className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all active:scale-95 ${isScrolling ? 'bg-red-500 text-white animate-pulse' : 'bg-orange-600 text-white hover:bg-orange-700'}`}>{isScrolling ? <IconPause /> : <IconPlay />}</button>
+         <button onClick={toggleScroll} className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all active:scale-95 ${isScrolling ? 'bg-red-500 text-white animate-pulse' : 'bg-orange-600 text-white hover:bg-orange-700'}`}>{isScrolling ? ( <IconPause /> ) : ( <IconPlay /> )}</button>
       </div>
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:hidden">
-            {/* Modal inchangée */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[80vh] border dark:border-slate-800">
                 <div className="p-4 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50 dark:bg-slate-800 flex-shrink-0">
                     <h3 className="font-bold text-slate-800 dark:text-white">Ajouter à une liste</h3>

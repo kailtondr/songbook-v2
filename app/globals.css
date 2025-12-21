@@ -1,43 +1,37 @@
+/* Supprime l'ancien @import seul et utilise celui-ci */
 @import "tailwindcss";
+@config "../tailwind.config.ts";
 
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 }
 
-/* 1. Couleurs par défaut (Mode Clair) */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
-/* 2. Couleurs Mode Sombre (Activées par la classe .dark) */
-/* C'est ICI que ça change : on utilise .dark au lieu de @media */
 :root[class~="dark"] {
-  --background: #0a0a0a; /* Gris très sombre (presque noir) */
-  --foreground: #ededed; /* Blanc cassé */
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
-/* Sécurité pour que Tailwind v4 comprenne bien le sélecteur .dark */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* 3. Styles de base */
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-  overscroll-behavior-y: none; /* Empêche le rebond élastique blanc sur mobile */
+  overscroll-behavior-y: none;
 }
 
-/* 4. Utilitaires indispensables (Menu & Mobile) */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
+/* GESTION DU PLEIN ÉCRAN */
+body.fullscreen nav {
+  transform: translateY(100%);
+  transition: transform 0.3s ease-in-out;
 }

@@ -98,8 +98,19 @@ export const parseChordPro = (content: string): ChordLine[] => {
 
     while ((match = regex.exec(cleanLine)) !== null) {
       tokens.push({ type: 'chord', value: match[1], originalChord: match[1] });
-      if (match[2]) {
-        tokens.push({ type: 'lyrics', value: match[2] });
+      
+      const suffix = match[2]; // Ce qui suit l'accord
+
+      // --- CORRECTION FORCÉE V2 ---
+      // On regarde si le suffixe contient autre chose que des espaces vides
+      if (suffix && suffix.trim().length > 0) {
+        // C'est des vraies paroles
+        tokens.push({ type: 'lyrics', value: suffix });
+      } else {
+        // C'est vide (ex: [C][G]) ou juste un espace (ex: [C] [G])
+        // On FORCE l'insertion de 3 espaces insécables (Unicode \u00A0)
+        // Cela garantit un écart visible à l'écran quoi qu'il arrive.
+        tokens.push({ type: 'lyrics', value: '\u00A0\u00A0\u00A0' }); 
       }
     }
 

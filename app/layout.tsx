@@ -1,21 +1,17 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import ClientLayout from './ClientLayout';
+import ClientLayout from './ClientLayout'; // Importe le composant Client
 
 const inter = Inter({ subsets: ['latin'] });
 
-// CONFIGURATION DU TITRE ET DE L'ICÔNE (Metadata)
-// C'est ce bloc qui change le nom dans l'onglet du navigateur
+// C'est ICI que le titre et l'icône sont définis pour le navigateur
 export const metadata: Metadata = {
   title: 'Songbook Chantez V.2',
   description: 'Mon carnet de chants numérique',
   manifest: '/manifest.json',
   icons: {
-    icon: [
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon.ico' }, // Fallback standard
-    ],
+    icon: '/icon-192.png',
     apple: '/icon-192.png',
   },
 };
@@ -36,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className={`${inter.className} bg-gray-50 dark:bg-slate-950 pb-24 transition-colors duration-300`}>
-        {/* On délègue toute la logique interactive au ClientLayout */}
+        {/* On passe la main au ClientLayout pour le reste (Menu, Auth...) */}
         <ClientLayout>
             {children}
         </ClientLayout>

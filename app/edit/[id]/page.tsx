@@ -1,3 +1,4 @@
+// Fichier: app/edit/[id]/page.tsx
 'use client';
 
 import { useState, useEffect, use, useRef } from 'react';
@@ -6,7 +7,14 @@ import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ChordToolbar from '@/components/music/ChordToolbar';
-import { cleanupChorusTags } from '@/lib/musicEngine'; // <-- IMPORT
+import { cleanupChorusTags } from '@/lib/musicEngine';
+import { searchYoutubeAction } from '@/app/actions/youtube'; 
+
+const IconMagic = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+  </svg>
+);
 
 export default function EditSong({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -14,9 +22,9 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searchingYt, setSearchingYt] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  // Champs
   const [titre, setTitre] = useState('');
   const [artiste, setArtiste] = useState('');
   const [cle, setCle] = useState('C');
@@ -55,15 +63,45 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
     fetchData();
   }, [id, router]);
 
-  // FONCTION : Nettoyage Automatique
+  // --- RECHERCHE YOUTUBE VIA LIBRAIRIE ---
+  const autoFillYoutube = async () => {
+    if (!titre) return alert("Remplissez d'abord le titre.");
+    
+    if (youtube && !confirm("Un lien existe déjà. Remplacer par le premier résultat trouvé ?")) return;
+
+    setSearchingYt(true);
+    try {
+        // Cette action utilise maintenant 'yt-search' sur le serveur
+        const foundUrl = await searchYoutubeAction(artiste, titre);
+        
+        if (foundUrl) {
+            setYoutube(foundUrl);
+        } else {
+            // Ne devrait quasiment jamais arriver avec yt-search
+            if(confirm("Aucune vidéo trouvée. Ouvrir YouTube manuellement ?")) {
+                searchYoutubeManual();
+            }
+        }
+    } catch (e) {
+        console.error("Erreur autoFill:", e);
+        searchYoutubeManual();
+    } finally {
+        setSearchingYt(false);
+    }
+  };
+
+  const searchYoutubeManual = () => {
+    const query = encodeURIComponent(`${artiste} ${titre}`);
+    window.open(`https://www.youtube.com/results?search_query=${query}`, '_blank');
+  };
+
   const applyAutoFix = () => {
     const fixed = cleanupChorusTags(contenu);
-    if (fixed !== contenu) {
-        setContenu(fixed);
-        // Petit effet visuel pour confirmer (optionnel)
-        alert("Refrains corrigés ! 🪄");
-    } else {
-        alert("Aucune correction nécessaire.");
+    if (fixed !== contenu) { 
+        setContenu(fixed); 
+        alert("Refrains corrigés ! 🪄"); 
+    } else { 
+        alert("Aucune correction nécessaire."); 
     }
   };
 
@@ -80,12 +118,6 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
         const newCursorPos = start + textToInsert.length - cursorOffset;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
-  };
-
-  const searchYoutube = () => {
-    if (!titre) return alert("Entrez d'abord un titre.");
-    const query = encodeURIComponent(`${artiste} ${titre}`);
-    window.open(`https://www.youtube.com/results?search_query=${query}`, '_blank');
   };
 
   const handleAudioBlur = () => {
@@ -171,13 +203,29 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
                 <span>🎵 Liens Multimédia</span>
             </h3>
             
+            {/* YOUTUBE */}
             <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Lien YouTube</label>
                 <div className="flex gap-2">
                     <input type="text" placeholder="https://youtube.com/..." 
                         className="flex-1 text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         value={youtube} onChange={e => setYoutube(e.target.value)} />
-                    <button type="button" onClick={searchYoutube} className="bg-gray-100 dark:bg-slate-800 hover:bg-orange-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400 hover:text-orange-600 p-2 rounded-lg transition-colors">🔍</button>
+                    
+                    <button 
+                        type="button" 
+                        onClick={autoFillYoutube} 
+                        disabled={searchingYt}
+                        className="bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 text-orange-600 dark:text-orange-400 p-2 rounded-lg transition-colors flex items-center justify-center min-w-[36px]"
+                        title="Trouver automatiquement la vidéo"
+                    >
+                        {searchingYt ? (
+                            <div className="w-4 h-4 border-2 border-orange-600/30 border-t-orange-600 rounded-full animate-spin"></div>
+                        ) : (
+                            <IconMagic />
+                        )}
+                    </button>
+                    
+                    <button type="button" onClick={searchYoutubeManual} className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 text-gray-600 dark:text-gray-400 p-2 rounded-lg transition-colors" title="Ouvrir YouTube">🔍</button>
                 </div>
             </div>
 
@@ -193,12 +241,9 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col h-[60vh]">
             <div className="flex justify-between items-center mb-2">
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Paroles et Accords</label>
-                
-                {/* BOUTON MAGIQUE AUTO-FIX */}
                 <button 
                     onClick={applyAutoFix}
                     className="text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-1 rounded-lg font-bold hover:bg-orange-200 transition-colors"
-                    title="Convertir les étoiles * en balises {soc}"
                 >
                     🪄 Corriger *
                 </button>

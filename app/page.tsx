@@ -5,9 +5,8 @@ import { collection, getDocs, orderBy, query, doc, getDoc } from 'firebase/fires
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/authContext';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // <-- Import Router
+import { useRouter } from 'next/navigation';
 
-// ... (Interface SongLite inchangée)
 interface SongLite {
   id: string;
   titre: string;
@@ -18,26 +17,26 @@ interface SongLite {
 
 export default function Home() {
   const { user } = useAuth();
-  const router = useRouter(); // <-- Hook Router
+  const router = useRouter();
   const [songs, setSongs] = useState<SongLite[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // États de filtrage
+  // Filtres
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedArtist, setSelectedArtist] = useState('all');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favoritesIds, setFavoritesIds] = useState<string[]>([]);
 
-  // 1. Chargement des données + Favoris
   useEffect(() => {
     const initPage = async () => {
-      // Restauration Session (Optionnel : si vous voulez garder la mémoire des filtres classiques)
       const savedSearch = sessionStorage.getItem('sb_search');
       const savedCat = sessionStorage.getItem('sb_cat');
-      
+      const savedArtist = sessionStorage.getItem('sb_artist');
+
       if (savedSearch) setSearchTerm(savedSearch);
       if (savedCat) setSelectedCategory(savedCat);
+      if (savedArtist) setSelectedArtist(savedArtist);
 
       try {
         const q = query(collection(db, "songs"), orderBy("titre"));
@@ -56,7 +55,6 @@ export default function Home() {
         setSongs(list);
       } catch (e) { console.error(e); } finally { setLoading(false); }
     };
-
     initPage();
   }, []);
 
@@ -64,21 +62,19 @@ export default function Home() {
     if (user) {
         const fetchFavs = async () => {
             const userDoc = await getDoc(doc(db, "users", user.uid));
-            if (userDoc.exists()) {
-                setFavoritesIds(userDoc.data().favorites || []);
-            }
+            if (userDoc.exists()) setFavoritesIds(userDoc.data().favorites || []);
         };
         fetchFavs();
     } else {
-        setFavoritesIds([]);
-        setShowFavoritesOnly(false);
+        setFavoritesIds([]); setShowFavoritesOnly(false);
     }
   }, [user]);
 
   useEffect(() => {
     sessionStorage.setItem('sb_search', searchTerm);
     sessionStorage.setItem('sb_cat', selectedCategory);
-  }, [searchTerm, selectedCategory]);
+    sessionStorage.setItem('sb_artist', selectedArtist);
+  }, [searchTerm, selectedCategory, selectedArtist]);
 
   const { categories, artists } = useMemo(() => {
     const cats = new Set<string>();
@@ -97,134 +93,138 @@ export default function Home() {
         const matchesCategory = selectedCategory === 'all' || song.categorie === selectedCategory;
         const matchesArtist = selectedArtist === 'all' || song.artiste === selectedArtist;
         const matchesFavorite = showFavoritesOnly ? favoritesIds.includes(song.id) : true;
-
         return matchesSearch && matchesCategory && matchesArtist && matchesFavorite;
     });
   }, [songs, searchTerm, selectedCategory, selectedArtist, showFavoritesOnly, favoritesIds]);
 
-  const resetFilters = () => {
-      setSearchTerm(''); setSelectedCategory('all'); setSelectedArtist('all'); setShowFavoritesOnly(false);
-  };
+  const resetFilters = () => { setSearchTerm(''); setSelectedCategory('all'); setSelectedArtist('all'); setShowFavoritesOnly(false); };
 
-  // --- MODIFICATION ICI : Navigation vers la page Artiste ---
   const handleArtistClick = (e: React.MouseEvent, artistName: string) => {
-    e.preventDefault(); 
-    e.stopPropagation();
-    // On redirige vers la page dédiée
+    e.preventDefault(); e.stopPropagation();
     router.push(`/artist/${encodeURIComponent(artistName)}`);
   };
 
   const handleCategoryClick = (e: React.MouseEvent, catName: string) => {
-    e.preventDefault(); 
-    e.stopPropagation();
-    setSelectedCategory(catName); // Pour la catégorie, on garde le filtre classique
+    e.preventDefault(); e.stopPropagation();
+    setSelectedCategory(catName);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-32 pt-2 transition-colors duration-300">
+    // Fond blanc/noir uni pour l'effet liste continue
+    <main className="min-h-screen bg-white dark:bg-slate-950 pb-32 pt-0 transition-colors duration-300">
       
-      <header className="bg-white dark:bg-slate-900 sticky top-0 z-10 shadow-sm border-b border-gray-200 dark:border-slate-800 rounded-b-2xl mb-4 overflow-hidden transition-colors duration-300">
-        <div className="px-4 pt-4 pb-2">
-            <div className="flex justify-between items-center mb-3">
-                <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">🎵 Songbook</h1>
-                <span className="text-xs font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-3 py-1 rounded-full border border-orange-200 dark:border-orange-800">
-                    {filteredSongs.length} / {songs.length}
+      {/* HEADER FIXE */}
+      <header className="bg-white dark:bg-slate-900 sticky top-0 z-10 border-b border-gray-200 dark:border-slate-800 transition-colors duration-300 shadow-sm">
+        <div className="px-3 pt-3 pb-2">
+            <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                    <img src="/icon-192.png" alt="Logo" className="w-8 h-8 rounded-lg shadow-sm border border-gray-100 dark:border-slate-700" />
+                    {/* TITRE APP NORMAL (Pas uppercase) */}
+                    <h1 className="text-lg font-extrabold text-slate-800 dark:text-white tracking-tight leading-none">
+                        Songbook <span className="text-orange-600 dark:text-orange-400">Chantez V.2</span>
+                    </h1>
+                </div>
+                <span className="text-[10px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                    {filteredSongs.length}
                 </span>
             </div>
             
-            <div className="relative mb-3">
+            <div className="relative mb-2">
                 <input 
-                    type="text" 
-                    placeholder="Rechercher titre, paroles..." 
-                    className="w-full pl-10 pr-4 py-3 bg-gray-100 dark:bg-slate-800 border-transparent focus:bg-white dark:focus:bg-slate-700 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900 rounded-xl text-base transition-all outline-none text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    type="text" placeholder="Rechercher..." 
+                    className="w-full pl-8 pr-8 py-2 bg-gray-100 dark:bg-slate-800 border-none rounded-lg text-sm transition-all outline-none text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-orange-500"
+                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 />
-                <svg className="w-5 h-5 text-gray-400 dark:text-gray-500 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 {searchTerm && (
-                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 bg-gray-200 dark:bg-slate-700 rounded-full">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        ✕
                     </button>
                 )}
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                 {user && (
-                    <button 
-                        onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                        className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap border transition-all ${showFavoritesOnly ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400' : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400'}`}
-                    >
+                    <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)} className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-[10px] font-bold whitespace-nowrap border transition-all ${showFavoritesOnly ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400' : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400'}`}>
                         <span>{showFavoritesOnly ? '❤️' : '🤍'}</span>
-                        <span>Favoris</span>
                     </button>
                 )}
-
-                <select 
-                    className={`appearance-none border text-slate-700 dark:text-gray-300 py-2 pl-3 pr-8 rounded-lg text-xs font-bold focus:outline-none focus:border-orange-500 transition-colors ${selectedCategory !== 'all' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400' : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`}
-                    value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} style={{ backgroundImage: 'none' }}
-                >
-                    <option value="all">📂 Toutes catégories</option>
+                <select className={`appearance-none border text-slate-700 dark:text-gray-300 py-1.5 pl-2 pr-6 rounded-md text-[10px] font-bold focus:outline-none focus:border-orange-500 transition-colors ${selectedCategory !== 'all' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400' : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`} value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} style={{ backgroundImage: 'none' }}>
+                    <option value="all">📂 Tout</option>
                     {categories.map(c => <option key={c} value={c}>📂 {c}</option>)}
                 </select>
-
-                <select 
-                    className={`appearance-none border text-slate-700 dark:text-gray-300 py-2 pl-3 pr-8 rounded-lg text-xs font-bold focus:outline-none focus:border-orange-500 max-w-[150px] transition-colors ${selectedArtist !== 'all' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400' : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`}
-                    value={selectedArtist} onChange={(e) => setSelectedArtist(e.target.value)}
-                >
-                    <option value="all">🎤 Tous les artistes</option>
+                <select className={`appearance-none border text-slate-700 dark:text-gray-300 py-1.5 pl-2 pr-6 rounded-md text-[10px] font-bold focus:outline-none focus:border-orange-500 max-w-[120px] transition-colors ${selectedArtist !== 'all' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400' : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700'}`} value={selectedArtist} onChange={(e) => setSelectedArtist(e.target.value)}>
+                    <option value="all">🎤 Artistes</option>
                     {artists.map(a => <option key={a} value={a}>🎤 {a}</option>)}
                 </select>
-
                 {(selectedCategory !== 'all' || selectedArtist !== 'all' || searchTerm !== '' || showFavoritesOnly) && (
-                    <button onClick={resetFilters} className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">✕ Reset</button>
+                    <button onClick={resetFilters} className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-md text-[10px] font-bold whitespace-nowrap hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">✕</button>
                 )}
             </div>
         </div>
       </header>
 
-      <div className="px-4 space-y-3">
-        {loading ? ( [1,2,3,4,5,6].map(i => ( <div key={i} className="h-20 bg-gray-200 dark:bg-slate-800 rounded-xl animate-pulse"></div> )) ) : filteredSongs.length > 0 ? (
-            filteredSongs.map((song) => (
-                <Link key={song.id} href={`/song/${song.id}`} className="block group">
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-all flex justify-between items-center hover:border-orange-200 dark:hover:border-orange-900 hover:shadow-md">
-                    <div className="flex-1 min-w-0 pr-4">
-                        <div className="flex items-center gap-2">
-                            <h2 className="font-bold text-gray-800 dark:text-gray-100 text-lg truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{song.titre}</h2>
-                            {favoritesIds.includes(song.id) && <span className="text-red-500 text-xs">❤️</span>}
-                        </div>
-                        
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            {/* ARTISTE CLIQUABLE */}
-                            <button 
-                                onClick={(e) => handleArtistClick(e, song.artiste)}
-                                className="text-sm text-gray-500 dark:text-gray-400 truncate font-medium hover:text-orange-600 dark:hover:text-orange-400 hover:underline text-left"
-                            >
-                                {song.artiste}
-                            </button>
+      {/* LISTE STYLE ONSONG (Continue, Compacte) */}
+      <div className="w-full">
+        {loading ? ( 
+            <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                {[1,2,3,4,5,6,7,8,9,10].map(i => ( <div key={i} className="h-12 bg-gray-50 dark:bg-slate-900 animate-pulse mx-4"></div> ))}
+            </div>
+        ) : filteredSongs.length > 0 ? (
+            // DIVIDE-Y crée les lignes de séparation entre les éléments (Liste collée)
+            <div className="divide-y divide-gray-200 dark:divide-slate-800 border-t border-gray-200 dark:border-slate-800">
+                {filteredSongs.map((song) => (
+                    <Link key={song.id} href={`/song/${song.id}`} className="block group hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors">
+                        <div className="px-3 py-2.5 flex justify-between items-center">
                             
-                            {/* CATÉGORIE CLIQUABLE */}
-                            {song.categorie && (
-                                <button 
-                                    onClick={(e) => handleCategoryClick(e, song.categorie!)}
-                                    className="text-[10px] px-2 py-0.5 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 rounded border border-gray-200 dark:border-slate-700 uppercase tracking-wide hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
-                                >
-                                    {song.categorie}
-                                </button>
-                            )}
+                            <div className="flex-1 min-w-0 pr-3">
+                                {/* TITRE EN MAJUSCULE (uppercase) */}
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <h2 className="font-bold text-slate-900 dark:text-gray-100 text-sm uppercase truncate leading-tight group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                                        {song.titre}
+                                    </h2>
+                                    {favoritesIds.includes(song.id) && <span className="text-red-500 text-[10px]">❤️</span>}
+                                </div>
+                                
+                                {/* Metadata en tout petit */}
+                                <div className="flex items-center flex-wrap gap-1 text-[10px] text-gray-500 dark:text-gray-500 leading-none mt-0.5 font-medium">
+                                    {/* ARTISTE EN ORANGE */}
+                                    <button 
+                                        onClick={(e) => handleArtistClick(e, song.artiste)}
+                                        className="text-orange-600 dark:text-orange-400 hover:underline truncate max-w-[180px] text-left uppercase font-bold"
+                                    >
+                                        {song.artiste}
+                                    </button>
+                                    
+                                    {song.categorie && (
+                                        <>
+                                            <span className="text-gray-300 dark:text-slate-700">•</span>
+                                            <button 
+                                                onClick={(e) => handleCategoryClick(e, song.categorie!)}
+                                                className="hover:text-orange-600 dark:hover:text-orange-400 hover:underline truncate uppercase"
+                                            >
+                                                {song.categorie}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Clé : Juste la lettre, très discret */}
+                            <div className="flex-shrink-0">
+                                <span className="text-xs font-bold text-slate-400 dark:text-slate-600 w-6 text-center inline-block">
+                                    {song.cle}
+                                </span>
+                            </div>
+
                         </div>
-                    </div>
-                    <div className="flex flex-col items-end justify-center">
-                        <span className="w-9 h-9 flex items-center justify-center text-sm font-extrabold bg-gray-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg border border-gray-200 dark:border-slate-700 group-hover:bg-orange-50 dark:group-hover:bg-orange-900/20 group-hover:text-orange-600 dark:group-hover:text-orange-400 group-hover:border-orange-200 dark:group-hover:border-orange-800 transition-colors">{song.cle}</span>
-                    </div>
-                </div>
-                </Link>
-            ))
+                    </Link>
+                ))}
+            </div>
         ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
-                <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <p className="text-lg font-medium">Aucun chant trouvé</p>
-                <p className="text-sm text-center">Essayez de réinitialiser les filtres</p>
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500 opacity-60">
+                <p className="text-sm">Aucun chant trouvé</p>
             </div>
         )}
       </div>
