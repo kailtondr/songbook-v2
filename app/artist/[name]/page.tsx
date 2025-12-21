@@ -37,7 +37,7 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
     const fetchData = async () => {
       setLoading(true);
       try {
-        // A. Récupérer les chants (Sans orderBy pour éviter l'erreur d'index)
+        // A. Récupérer les chants
         const q = query(
             collection(db, "songs"), 
             where("artiste", "==", artistName)
@@ -52,7 +52,7 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
         const artistDoc = await getDoc(doc(db, "artists", artistDocId));
         if (artistDoc.exists() && artistDoc.data().imageUrl) {
             setArtistImage(artistDoc.data().imageUrl);
-            setEditImageUrl(artistDoc.data().imageUrl); // Pré-remplir le champ d'édition
+            setEditImageUrl(artistDoc.data().imageUrl);
         }
 
       } catch (e) {
@@ -83,7 +83,6 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
         const newDocId = targetName.trim().replace(/\//g, '-');
 
         if (targetName !== artistName) {
-            // Migration vers le nouveau nom : Créer nouveau, supprimer ancien
             batch.set(doc(db, "artists", newDocId), { 
                 name: targetName.trim(), 
                 imageUrl: targetImage, 
@@ -91,7 +90,6 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
             });
             batch.delete(doc(db, "artists", oldDocId));
         } else {
-            // Mise à jour simple (Image)
             batch.set(doc(db, "artists", newDocId), { 
                 name: targetName, 
                 imageUrl: targetImage, 
@@ -134,20 +132,17 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
             const imageUrl = bestMatch.picture_xl || bestMatch.picture_medium;
             const deezerName = bestMatch.name;
 
-            // INTELLIGENCE : Si le nom Deezer est différent (ex: correction ortho), on propose
             if (deezerName.toLowerCase() !== artistName.toLowerCase()) {
                 if (confirm(`Deezer suggère le nom officiel : "${deezerName}" (au lieu de "${artistName}").\n\nVoulez-vous RENOMMER l'artiste et utiliser sa photo ?`)) {
                     await performGlobalUpdate(deezerName, imageUrl);
                     return;
                 }
             }
-
-            // Sinon, on met juste à jour l'image
             await performGlobalUpdate(artistName, imageUrl);
             
         } else {
-            alert("Aucune image trouvée sur Deezer. Essayez d'ajouter une URL manuellement via le bouton 'Gérer l'artiste'.");
-            setIsEditing(true); // Ouvre la modale pour l'ajout manuel
+            alert("Aucune image trouvée sur Deezer. Essayez d'ajouter une URL manuellement.");
+            setIsEditing(true);
         }
     } catch (e) {
         console.error(e);
@@ -157,7 +152,6 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
     }
   };
 
-  // Gestion soumission formulaire manuel
   const handleManualSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       performGlobalUpdate(editName, editImageUrl);
@@ -166,12 +160,13 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
   if (loading) return <div className="flex h-screen items-center justify-center text-gray-500 dark:text-gray-400">Chargement...</div>;
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-32 transition-colors duration-300">
+    // BG WHITE comme sur la Home pour l'effet liste continue
+    <main className="min-h-screen bg-white dark:bg-slate-950 pb-32 transition-colors duration-300">
       
-      {/* HEADER AVEC IMAGE */}
-      <div className="relative bg-slate-900 text-white overflow-hidden shadow-md min-h-[250px] flex flex-col justify-end">
+      {/* HEADER AVEC IMAGE (Style préservé car spécifique Artiste) */}
+      <div className="relative bg-slate-900 text-white overflow-hidden shadow-sm min-h-[200px] flex flex-col justify-end mb-0">
         {artistImage ? (
-            <div className="absolute inset-0 bg-cover bg-center opacity-50 blur-xl scale-110 transition-all duration-700" style={{ backgroundImage: `url(${artistImage})` }}></div>
+            <div className="absolute inset-0 bg-cover bg-center opacity-50 blur-xl scale-110" style={{ backgroundImage: `url(${artistImage})` }}></div>
         ) : (
             <div className="absolute inset-0 opacity-30 bg-gradient-to-br from-orange-600 to-purple-800"></div>
         )}
@@ -183,36 +178,35 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
             </Link>
         </div>
 
-        <div className="relative z-10 px-6 py-8 flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
+        <div className="relative z-10 px-6 py-6 flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
             <div className="relative group shrink-0">
-                <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full shadow-2xl border-4 border-white/10 bg-slate-800 flex items-center justify-center overflow-hidden ${imageLoading ? 'animate-pulse' : ''}`}>
+                <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full shadow-2xl border-4 border-white/10 bg-slate-800 flex items-center justify-center overflow-hidden ${imageLoading ? 'animate-pulse' : ''}`}>
                     {artistImage ? (
                         <img src={artistImage} alt={artistName} className="w-full h-full object-cover" />
                     ) : (
-                        <span className="text-4xl font-bold text-white/20">{artistName.charAt(0)}</span>
+                        <span className="text-3xl font-bold text-white/20">{artistName.charAt(0)}</span>
                     )}
                 </div>
                 
-                {/* Bouton Baguette Magique (Deezer) */}
                 {user && (
                     <button 
                         onClick={fetchAutoImage}
                         disabled={imageLoading}
-                        className="absolute bottom-0 right-0 bg-orange-600 text-white p-2 rounded-full shadow-lg hover:bg-orange-500 hover:scale-110 transition-all border-2 border-slate-900 z-20"
+                        className="absolute bottom-0 right-0 bg-orange-600 text-white p-1.5 rounded-full shadow-lg hover:bg-orange-500 hover:scale-110 transition-all border-2 border-slate-900 z-20"
                         title="Chercher image auto (Deezer)"
                     >
-                        {imageLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <IconMagic />}
+                        {imageLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <IconMagic />}
                     </button>
                 )}
             </div>
             
-            <div className="flex-1 mb-2">
-                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-2 text-white drop-shadow-md">{artistName}</h1>
-                <p className="text-white/80 font-medium text-sm flex items-center justify-center md:justify-start gap-3">
-                    <span className="bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">{songs.length} chants</span>
+            <div className="flex-1 mb-1">
+                <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-1 text-white drop-shadow-md">{artistName}</h1>
+                <p className="text-white/80 font-medium text-xs flex items-center justify-center md:justify-start gap-3">
+                    <span className="bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-sm border border-white/10">{songs.length} chants</span>
                     {user && (
-                        <button onClick={() => { setEditName(artistName); setIsEditing(true); }} className="hover:text-white hover:underline transition-colors flex items-center gap-1 text-xs opacity-70">
-                            <IconEdit /> Gérer l'artiste
+                        <button onClick={() => { setEditName(artistName); setIsEditing(true); }} className="hover:text-white hover:underline transition-colors flex items-center gap-1 opacity-70">
+                            <IconEdit /> Gérer
                         </button>
                     )}
                 </p>
@@ -220,28 +214,55 @@ export default function ArtistPage({ params }: { params: Promise<{ name: string 
         </div>
       </div>
 
-      {/* LISTE DES CHANTS */}
-      <div className="p-4 max-w-4xl mx-auto space-y-3 relative z-20">
+      {/* LISTE STYLE ONSONG (Compacte, Divisée) */}
+      <div className="w-full relative z-20 bg-white dark:bg-slate-950">
         {songs.length === 0 ? (
-            <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-gray-300 dark:border-slate-800">
+            <div className="text-center py-20 border-t border-gray-100 dark:border-slate-800">
                 <p className="text-gray-400 dark:text-gray-500 mb-2">Aucun chant trouvé pour cet artiste.</p>
             </div>
         ) : (
-            songs.map((song) => (
-                <Link key={song.id} href={`/song/${song.id}`} className="block group">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-all flex justify-between items-center hover:border-orange-200 dark:hover:border-orange-900 hover:shadow-md">
-                        <div className="flex-1 min-w-0 pr-4">
-                            <h2 className="font-bold text-gray-800 dark:text-gray-100 text-lg truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{song.titre}</h2>
-                            {song.categorie && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 uppercase tracking-wide font-bold">{song.categorie}</p>}
+            // Structure identique à la Home : divide-y pour les lignes
+            <div className="divide-y divide-gray-200 dark:divide-slate-800 border-t border-gray-200 dark:border-slate-800">
+                {songs.map((song) => (
+                    <Link key={song.id} href={`/song/${song.id}`} className="block group hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors">
+                        <div className="px-4 py-3 flex justify-between items-center">
+                            
+                            <div className="flex-1 min-w-0 pr-3">
+                                {/* TITRE EN MAJUSCULE */}
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <h2 className="font-bold text-slate-900 dark:text-gray-100 text-sm uppercase truncate leading-tight group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                                        {song.titre}
+                                    </h2>
+                                </div>
+                                
+                                {/* Metadata ligne du dessous */}
+                                <div className="flex items-center flex-wrap gap-1 text-[10px] text-gray-500 dark:text-gray-500 leading-none mt-0.5 font-medium">
+                                    {/* On affiche la Catégorie en ORANGE (place de l'artiste sur la home) */}
+                                    {song.categorie ? (
+                                        <span className="text-orange-600 dark:text-orange-400 font-bold uppercase tracking-wide">
+                                            {song.categorie}
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-300 dark:text-slate-700 italic">Sans catégorie</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Clé : Juste la lettre, très discret, aligné droite */}
+                            <div className="flex-shrink-0">
+                                <span className="text-xs font-bold text-slate-400 dark:text-slate-600 w-6 text-center inline-block">
+                                    {song.cle || '?'}
+                                </span>
+                            </div>
+
                         </div>
-                        <span className="w-9 h-9 flex items-center justify-center text-sm font-extrabold bg-gray-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg border border-gray-200 dark:border-slate-700">{song.cle || '?'}</span>
-                    </div>
-                </Link>
-            ))
+                    </Link>
+                ))}
+            </div>
         )}
       </div>
 
-      {/* MODAL GESTION (Nom + Image Manuelle) */}
+      {/* MODAL GESTION */}
       {isEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl border dark:border-slate-800 transform scale-100">
