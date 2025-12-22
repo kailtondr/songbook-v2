@@ -61,7 +61,7 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   
   // Navigation & Contexte
   const [nav, setNav] = useState<{ prev: NavSong | null; next: NavSong | null }>({ prev: null, next: null });
-  const [navContext, setNavContext] = useState<{ title: string; subtitle: string } | null>(null); // NOUVEAU
+  const [navContext, setNavContext] = useState<{ title: string; subtitle: string } | null>(null);
 
   // Affichage
   const [semitones, setSemitones] = useState(0);
@@ -143,7 +143,8 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
     if(status === 'SUCCESS' && song) {
         const fetchNeighbors = async () => {
             try {
-                let allDocs = [];
+                // CORRECTION ICI : On type explicitement allDocs comme un tableau de NavSong
+                let allDocs: NavSong[] = []; 
 
                 if (playlistId) {
                     // CAS 1: NAVIGATION PLAYLIST
@@ -159,18 +160,19 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
                         // Récupérer les voisins
                         const promises = songIds.map(async (sid) => {
                             const d = await getDoc(doc(db, 'songs', sid));
-                            return d.exists() ? { id: d.id, titre: d.data().titre } : null;
+                            // On s'assure de typer le retour
+                            return d.exists() ? { id: d.id, titre: d.data().titre } as NavSong : null;
                         });
                         const results = await Promise.all(promises);
                         allDocs = results.filter(r => r !== null) as NavSong[];
                     }
                 } else {
                     // CAS 2: NAVIGATION GLOBALE
-                    setNavContext({ title: "Chantez le Seigneur", subtitle: "" }); // Contexte par défaut
+                    setNavContext({ title: "Chantez le Seigneur", subtitle: "" });
                     
                     const q = query(collection(db, "songs"), orderBy("titre"));
                     const snap = await getDocs(q);
-                    allDocs = snap.docs.map(d => ({ id: d.id, titre: d.data().titre }));
+                    allDocs = snap.docs.map(d => ({ id: d.id, titre: d.data().titre } as NavSong));
                 }
                 
                 const currentIndex = allDocs.findIndex(d => d.id === id);
