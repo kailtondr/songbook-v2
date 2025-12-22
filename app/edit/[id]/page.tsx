@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react'; // Ajout de Suspense
+import { useState, useEffect, useRef, Suspense, use } from 'react'; // "use" ajouté ici
 import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -9,17 +9,16 @@ import ChordToolbar from '@/components/music/ChordToolbar';
 import { cleanupChorusTags } from '@/lib/musicEngine';
 import { searchYoutubeAction } from '@/app/actions/youtube'; 
 
-// ... (Gardez le composant IconMagic tel quel) ...
 const IconMagic = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
   </svg>
 );
 
-// 1. LE COMPOSANT PRINCIPAL (Renommé en EditSongContent)
+// 1. LE COMPOSANT DE CONTENU (Logique principale)
 function EditSongContent({ id }: { id: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams(); // Utilisation sécurisée ici
+  const searchParams = useSearchParams(); 
   const isReviewMode = searchParams.get('reviewMode') === 'true';
 
   const [loading, setLoading] = useState(true);
@@ -87,8 +86,6 @@ function EditSongContent({ id }: { id: string }) {
     fetchData();
   }, [id, router]);
 
-  // ... (Gardez toutes les fonctions : autoFillYoutube, searchYoutubeManual, applyAutoFix, handleInsert, handleAudioBlur, handleUpdate, handleDelete) ...
-  // COPIEZ-COLLEZ LES FONCTIONS ICI (elles ne changent pas)
   const autoFillYoutube = async () => {
     if (!titre) return alert("Remplissez d'abord le titre.");
     if (youtube && !confirm("Un lien existe déjà. Remplacer par le premier résultat trouvé ?")) return;
@@ -143,8 +140,7 @@ function EditSongContent({ id }: { id: string }) {
     let url = audio.trim();
     if (url.includes('/s/') && !url.includes('/download')) {
       if (url.endsWith('/')) url = url.slice(0, -1);
-      url += '/download';
-      setAudio(url);
+      setAudio(url + '/download');
     }
   };
 
@@ -209,7 +205,6 @@ function EditSongContent({ id }: { id: string }) {
           <ChordToolbar content={contenu} onInsert={handleInsert} />
       </div>
 
-      {/* CONTENEUR PRINCIPAL : PLEINE LARGEUR (w-full) */}
       <div className="p-4 space-y-4 w-full">
         
         {reviewed && (
@@ -279,6 +274,7 @@ function EditSongContent({ id }: { id: string }) {
             </div>
         </div>
 
+        {/* BLOC PAROLES AGRANDI */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col min-h-[85vh]">
             <div className="flex justify-between items-center mb-2">
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Paroles et Accords</label>
@@ -307,7 +303,7 @@ function EditSongContent({ id }: { id: string }) {
 export default function EditSongPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
-    <Suspense fallback={<div className="p-10 text-center">Chargement de l'éditeur...</div>}>
+    <Suspense fallback={<div className="p-10 text-center text-gray-500">Chargement de l'éditeur...</div>}>
       <EditSongContent id={id} />
     </Suspense>
   );

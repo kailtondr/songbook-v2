@@ -118,7 +118,7 @@ export default function SettingsPage() {
             </div>
         </section>
 
-        {/* Section Apparence (Inchangée) */}
+        {/* Section Apparence */}
         <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
             <h2 className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-100 dark:border-slate-800">Apparence</h2>
             
@@ -147,6 +147,18 @@ export default function SettingsPage() {
             <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
                 <h2 className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-100 dark:border-slate-800">Administration</h2>
                 
+                {/* LIEN MODE REVUE (NOUVEAU) */}
+                <Link href="/review" className="flex items-center justify-between p-4 hover:bg-orange-50 dark:hover:bg-slate-800 transition-colors border-b border-gray-50 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xl">🧐</span>
+                        <div>
+                            <p className="font-bold text-slate-800 dark:text-white">Mode Revue</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Auditer et valider les chants</p>
+                        </div>
+                    </div>
+                    <span className="text-gray-400">→</span>
+                </Link>
+
                 <Link href="/admin/artists" className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border-b border-gray-50 dark:border-slate-800 last:border-0">
                     <div className="flex items-center gap-3">
                         <span className="text-xl">🎤</span>
