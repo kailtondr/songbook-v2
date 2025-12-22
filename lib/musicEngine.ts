@@ -5,6 +5,7 @@ export interface ChordToken {
   type: ChordTokenType;
   value: string;
   originalChord?: string;
+  isSpacer?: boolean; // NOUVEAU : Indique si l'accord doit être espacé
 }
 
 export type ChordLine = ChordToken[];
@@ -62,24 +63,17 @@ export const parseChordPro = (content: string): ChordLine[] => {
     const cleanLine = line.trim();
     const tokens: ChordToken[] = [];
 
-    // 1. Détection des blocs spéciaux (Refrain)
-    if (cleanLine.match(/^\{(soc|start_of_chorus)\}/i)) {
-        return [{ type: 'chorus_start', value: '' }];
-    }
-    if (cleanLine.match(/^\{(eoc|end_of_chorus)\}/i)) {
-        return [{ type: 'chorus_end', value: '' }];
-    }
+    // 1. Blocs spéciaux
+    if (cleanLine.match(/^\{(soc|start_of_chorus)\}/i)) return [{ type: 'chorus_start', value: '' }];
+    if (cleanLine.match(/^\{(eoc|end_of_chorus)\}/i)) return [{ type: 'chorus_end', value: '' }];
 
     // 2. Commentaires et Headers
     if (cleanLine.startsWith('{') || cleanLine.startsWith('(')) {
-       const text = cleanLine.replace(/[{}]/g, '');
-       return [{ type: 'comment', value: text }];
+       return [{ type: 'comment', value: cleanLine.replace(/[{}]/g, '') }];
     }
-    
     if (cleanLine.startsWith('#')) {
         return [{ type: 'header', value: cleanLine.replace(/#/g, '') }];
     }
-
     if (cleanLine === '') {
         return [{ type: 'space', value: '' }];
     }
@@ -88,6 +82,7 @@ export const parseChordPro = (content: string): ChordLine[] => {
     const regex = /\[([^\]]+)\]([^\[]*)/g;
     let match;
 
+    // Texte avant le premier accord
     const firstBracket = cleanLine.indexOf('[');
     if (firstBracket > 0) {
        tokens.push({ type: 'lyrics', value: cleanLine.substring(0, firstBracket) });
@@ -97,20 +92,26 @@ export const parseChordPro = (content: string): ChordLine[] => {
     }
 
     while ((match = regex.exec(cleanLine)) !== null) {
-      tokens.push({ type: 'chord', value: match[1], originalChord: match[1] });
-      
-      const suffix = match[2]; // Ce qui suit l'accord
+      const chordName = match[1];
+      const suffix = match[2]; // Le texte juste après l'accord
 
-      // --- CORRECTION FORCÉE V2 ---
-      // On regarde si le suffixe contient autre chose que des espaces vides
-      if (suffix && suffix.trim().length > 0) {
-        // C'est des vraies paroles
+      // LOGIQUE INTELLIGENTE :
+      // Si le suffixe est vide (ex: [C][D]) ou juste des espaces, c'est un accord "Spacer".
+      // Sinon, c'est un accord lié à une syllabe (ex: [C]Al[D]lo).
+      const isSpacer = (!suffix || suffix.trim().length === 0);
+
+      tokens.push({ 
+          type: 'chord', 
+          value: chordName, 
+          originalChord: chordName,
+          isSpacer: isSpacer // On marque l'accord
+      });
+      
+      if (suffix && suffix.length > 0) {
         tokens.push({ type: 'lyrics', value: suffix });
       } else {
-        // C'est vide (ex: [C][G]) ou juste un espace (ex: [C] [G])
-        // On FORCE l'insertion de 3 espaces insécables (Unicode \u00A0)
-        // Cela garantit un écart visible à l'écran quoi qu'il arrive.
-        tokens.push({ type: 'lyrics', value: '\u00A0\u00A0\u00A0' }); 
+        // Si vide, on met un espace insécable pour que la colonne existe
+        tokens.push({ type: 'lyrics', value: '\u00A0' }); 
       }
     }
 
@@ -123,50 +124,26 @@ export const guessPreferFlats = (key: string): boolean => {
     return flatKeys.includes(key.trim());
 };
 
-// --- NOUVELLE FONCTION : NETTOYAGE REFRAINS ---
 export const cleanupChorusTags = (text: string): string => {
   if (!text) return "";
-
-  // 1. Vérifier si des balises existent déjà
   const hasExistingTags = /\{(soc|start_of_chorus|eoc|end_of_chorus)\}/i.test(text);
+  if (hasExistingTags) return text.replace(/^\s*\*\s?/gm, '');
 
-  if (hasExistingTags) {
-    // Si oui, on supprime juste les étoiles en début de ligne
-    return text.replace(/^\s*\*\s?/gm, '');
-  }
-
-  // 2. Sinon, on traite ligne par ligne
   const lines = text.split('\n');
   let result: string[] = [];
   let inChorus = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Détection de l'étoile (avec ou sans espace avant/après)
     const isStarLine = /^\s*\*/.test(line);
-
     if (isStarLine) {
-      // Si on entre dans un bloc étoilé
-      if (!inChorus) {
-        result.push('{soc}'); // Start of Chorus
-        inChorus = true;
-      }
-      // On nettoie la ligne (enlève l'étoile)
+      if (!inChorus) { result.push('{soc}'); inChorus = true; }
       result.push(line.replace(/^\s*\*\s?/, ''));
     } else {
-      // Si on sort d'un bloc étoilé
-      if (inChorus) {
-        result.push('{eoc}'); // End of Chorus
-        inChorus = false;
-      }
+      if (inChorus) { result.push('{eoc}'); inChorus = false; }
       result.push(line);
     }
   }
-  
-  // Fermer la balise si le texte finit par un refrain
-  if (inChorus) {
-    result.push('{eoc}');
-  }
-
+  if (inChorus) result.push('{eoc}');
   return result.join('\n');
 };

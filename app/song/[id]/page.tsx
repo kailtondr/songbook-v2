@@ -22,6 +22,7 @@ const IconPlus = () => <svg className="w-5 h-5" fill="none" stroke="currentColor
 const IconMinus = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4"/></svg>;
 const IconPalette = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>;
 const IconFullscreen = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>;
+const IconYoutube = () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>;
 
 interface SongData {
     id: string;
@@ -30,6 +31,7 @@ interface SongData {
     contenu: string;
     cle: string;
     categorie: string;
+    mass?: string;
     youtube?: string;
     audio?: string;
 }
@@ -56,6 +58,9 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const [preferFlat, setPreferFlat] = useState(false);
   const [selectedFont, setSelectedFont] = useState<keyof typeof FONTS>('helvetica');
   const [chordColor, setChordColor] = useState<ChordColorKey>('red');
+  
+  // YouTube Toggle
+  const [showVideo, setShowVideo] = useState(false);
 
   // UI States
   const [showModal, setShowModal] = useState(false);
@@ -97,6 +102,7 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
               contenu: data.contenu || "",
               cle: data.cle || "C",
               categorie: data.categorie || "",
+              mass: data.mass || "",
               youtube: data.youtube,
               audio: data.audio
           });
@@ -144,14 +150,12 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
       setChordColor(colors[nextIndex]);
   };
 
-  // --- NOUVEAU : Sync Body Class pour cacher le Menu ---
   useEffect(() => {
     if (isFullScreen) document.body.classList.add('fullscreen');
     else document.body.classList.remove('fullscreen');
     return () => document.body.classList.remove('fullscreen');
   }, [isFullScreen]);
 
-  // Double Tap Handler
   const handleDoubleTap = () => {
       const now = Date.now();
       const DOUBLE_TAP_DELAY = 300;
@@ -278,9 +282,14 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
 
                         const chordVal = group.chord ? (showChords ? transposeChord(group.chord.originalChord!, semitones, preferFlat) : null) : null;
                         const lyricsVal = group.lyrics ? group.lyrics.value : "\u00A0";
+                        
+                        // DETECTION DE L'ACCORD "SOLITAIRE" (SPACER)
+                        // Si l'accord est marqué "isSpacer" (pas de paroles), on rajoute du padding-right (pr-4)
+                        // Sinon, on met juste un petit espace de sécurité (pr-0.5) pour ne pas casser les mots
+                        const spacerClass = group.chord?.isSpacer ? "pr-4" : "pr-0";
 
                         return (
-                            <div key={j} className="flex flex-col items-center min-w-[2px]">
+                            <div key={j} className={`flex flex-col items-center min-w-[1ch] ${spacerClass}`}>
                                 {showChords && (
                                     <span className={`text-[0.95em] font-bold mb-0.5 select-none leading-none h-[1.2em] whitespace-nowrap transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>
                                         {chordVal || "."}
@@ -303,7 +312,6 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   if (status === 'ERROR') return <div className="p-8 text-center text-red-600 dark:text-red-400">{errorMessage} <br/><Link href="/" className="underline">Retour</Link></div>;
 
   const yId = song?.youtube ? getYoutubeId(song.youtube) : null;
-  const hasMedia = !!(yId || song?.audio);
 
   return (
     <div 
@@ -318,9 +326,11 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
       >
         <Link href="/" className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300"><IconBack /></Link>
         <div className="flex-1 overflow-hidden">
-          {/* TITRE EN MAJUSCULE */}
           <h1 className="text-lg font-bold truncate text-slate-900 dark:text-white uppercase">{song?.titre}</h1>
           <button onClick={goToArtist} className="text-xs text-orange-600 dark:text-orange-400 truncate font-medium hover:underline text-left block w-full">{song?.artiste}</button>
+          {song?.mass && (
+            <p className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-wide truncate">{song.mass}</p>
+          )}
         </div>
         <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-gray-300" title="Plein Écran"><IconFullscreen /></button>
         <button onClick={toggleFavorite} className="p-2 rounded-full hover:bg-red-50 dark:hover:bg-slate-800 transition-colors"><IconHeart filled={isFavorite} /></button>
@@ -345,6 +355,16 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
             <div className={`w-3 h-3 rounded-full mr-1 ${chordColor === 'red' ? 'bg-red-500' : chordColor === 'orange' ? 'bg-orange-500' : chordColor === 'blue' ? 'bg-blue-500' : 'bg-black dark:bg-white'}`}></div>
             <IconPalette />
          </button>
+
+         {yId && (
+            <button 
+                onClick={() => setShowVideo(!showVideo)} 
+                className={`px-3 h-9 rounded border shadow-sm transition-colors flex items-center justify-center ${showVideo ? 'bg-red-600 text-white border-red-700' : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-700 text-red-600'}`}
+                title="Afficher/Masquer la vidéo"
+            >
+                <IconYoutube />
+            </button>
+         )}
          
          <div className="flex bg-white dark:bg-slate-800 rounded border border-gray-300 dark:border-slate-700 shadow-sm h-9 items-center ml-auto">
             <select className="h-full px-2 text-[10px] font-bold bg-transparent text-slate-600 dark:text-slate-300 border-r border-gray-300 dark:border-slate-700 outline-none uppercase" value={selectedFont} onChange={(e) => setSelectedFont(e.target.value as keyof typeof FONTS)}>
@@ -360,20 +380,35 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
           <p className="text-lg text-gray-600">{song?.artiste} — Clé: {transposeChord(song?.cle || 'C', semitones, preferFlat)}</p>
       </div>
 
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-start gap-0 lg:gap-8 lg:p-6">
-        {hasMedia && (
-            <aside className={`w-full lg:w-[400px] flex-shrink-0 order-1 lg:order-2 lg:sticky lg:top-[140px] transition-all duration-300 print:hidden ${isScrolling || isFullScreen ? 'opacity-50 hover:opacity-100' : 'opacity-100'}`}>
-                <div className="bg-gray-50 dark:bg-slate-900 lg:rounded-xl lg:border border-gray-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                    <div className="p-2 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center lg:hidden"><span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase px-2">Lecteur</span></div>
-                    <div className="p-3 space-y-3">
-                        {song?.audio && (<audio controls className="w-full h-8 block" src={getCleanAudioUrl(song.audio)}>Votre navigateur ne supporte pas l'audio.</audio>)}
-                        {yId && (<div className="relative pb-[56.25%] h-0 rounded-lg overflow-hidden bg-black shadow-inner"><iframe className="absolute top-0 left-0 w-full h-full" src={`https://www.youtube-nocookie.com/embed/${yId}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>)}
-                    </div>
+      <div className="max-w-7xl mx-auto p-4 md:p-0 lg:p-6">
+        
+        {showVideo && yId && (
+            <div className="relative w-full max-w-2xl mx-auto mb-6 bg-black rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-4 border-2 border-slate-900/10 dark:border-slate-700">
+                <button 
+                    onClick={() => setShowVideo(false)} 
+                    className="absolute top-2 right-2 z-10 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm transition-all"
+                    title="Fermer la vidéo"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <div className="relative pb-[56.25%] h-0">
+                    <iframe 
+                        className="absolute top-0 left-0 w-full h-full" 
+                        src={`https://www.youtube-nocookie.com/embed/${yId}?rel=0&playsinline=1&autoplay=1`} 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowFullScreen
+                    ></iframe>
                 </div>
-            </aside>
+            </div>
+        )}
+
+        {song?.audio && !showVideo && (
+             <div className="mb-4 bg-gray-50 dark:bg-slate-900 rounded-lg p-2 border border-gray-200 dark:border-slate-800">
+                <audio controls className="w-full h-8 block" src={getCleanAudioUrl(song.audio)}>Votre navigateur ne supporte pas l'audio.</audio>
+             </div>
         )}
         
-        <main className="flex-1 w-full order-2 lg:order-1 p-4 md:p-0" style={{ fontSize: `${fontSize}px` }}>
+        <main className="w-full" style={{ fontSize: `${fontSize}px` }}>
             {contentDisplay}
             <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800 text-center pb-8 flex justify-center items-center gap-4 flex-wrap">
                 <p className="text-gray-400 dark:text-gray-500 text-sm italic">© {song?.artiste}</p>

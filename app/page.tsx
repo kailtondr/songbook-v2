@@ -13,6 +13,7 @@ interface SongLite {
   artiste: string;
   cle: string;
   categorie?: string;
+  mass?: string; // NOUVEAU : On récupère l'ordinaire
 }
 
 export default function Home() {
@@ -49,7 +50,8 @@ export default function Home() {
             titre: data.titre || "Sans titre", 
             artiste: data.artiste || "Inconnu", 
             cle: data.cle || "?",
-            categorie: data.categorie || "Divers"
+            categorie: data.categorie || "Divers",
+            mass: data.mass // On charge le champ mass
           });
         });
         setSongs(list);
@@ -89,7 +91,11 @@ export default function Home() {
   const filteredSongs = useMemo(() => {
     return songs.filter(song => {
         const term = searchTerm.toLowerCase();
-        const matchesSearch = (song.titre?.toLowerCase() || "").includes(term) || (song.artiste?.toLowerCase() || "").includes(term);
+        // Recherche inclusive : Titre, Artiste ou Ordinaire (mass)
+        const matchesSearch = (song.titre?.toLowerCase() || "").includes(term) 
+                           || (song.artiste?.toLowerCase() || "").includes(term)
+                           || (song.mass?.toLowerCase() || "").includes(term);
+                           
         const matchesCategory = selectedCategory === 'all' || song.categorie === selectedCategory;
         const matchesArtist = selectedArtist === 'all' || song.artiste === selectedArtist;
         const matchesFavorite = showFavoritesOnly ? favoritesIds.includes(song.id) : true;
@@ -111,7 +117,6 @@ export default function Home() {
   };
 
   return (
-    // Fond blanc/noir uni pour l'effet liste continue
     <main className="min-h-screen bg-white dark:bg-slate-950 pb-32 pt-0 transition-colors duration-300">
       
       {/* HEADER FIXE */}
@@ -120,7 +125,6 @@ export default function Home() {
             <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2">
                     <img src="/icon-192.png" alt="Logo" className="w-8 h-8 rounded-lg shadow-sm border border-gray-100 dark:border-slate-700" />
-                    {/* TITRE APP NORMAL (Pas uppercase) */}
                     <h1 className="text-lg font-extrabold text-slate-800 dark:text-white tracking-tight leading-none">
                         Songbook <span className="text-orange-600 dark:text-orange-400">Chantez V.2</span>
                     </h1>
@@ -165,21 +169,20 @@ export default function Home() {
         </div>
       </header>
 
-      {/* LISTE STYLE ONSONG (Continue, Compacte) */}
+      {/* LISTE DES CHANTS */}
       <div className="w-full">
         {loading ? ( 
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
                 {[1,2,3,4,5,6,7,8,9,10].map(i => ( <div key={i} className="h-12 bg-gray-50 dark:bg-slate-900 animate-pulse mx-4"></div> ))}
             </div>
         ) : filteredSongs.length > 0 ? (
-            // DIVIDE-Y crée les lignes de séparation entre les éléments (Liste collée)
             <div className="divide-y divide-gray-200 dark:divide-slate-800 border-t border-gray-200 dark:border-slate-800">
                 {filteredSongs.map((song) => (
                     <Link key={song.id} href={`/song/${song.id}`} className="block group hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors">
                         <div className="px-3 py-2.5 flex justify-between items-center">
                             
                             <div className="flex-1 min-w-0 pr-3">
-                                {/* TITRE EN MAJUSCULE (uppercase) */}
+                                {/* TITRE */}
                                 <div className="flex items-center gap-2 mb-0.5">
                                     <h2 className="font-bold text-slate-900 dark:text-gray-100 text-sm uppercase truncate leading-tight group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                                         {song.titre}
@@ -187,9 +190,9 @@ export default function Home() {
                                     {favoritesIds.includes(song.id) && <span className="text-red-500 text-[10px]">❤️</span>}
                                 </div>
                                 
-                                {/* Metadata en tout petit */}
+                                {/* METADATA (ARTISTE | MASS ou CAT) */}
                                 <div className="flex items-center flex-wrap gap-1 text-[10px] text-gray-500 dark:text-gray-500 leading-none mt-0.5 font-medium">
-                                    {/* ARTISTE EN ORANGE */}
+                                    {/* ARTISTE */}
                                     <button 
                                         onClick={(e) => handleArtistClick(e, song.artiste)}
                                         className="text-orange-600 dark:text-orange-400 hover:underline truncate max-w-[180px] text-left uppercase font-bold"
@@ -197,21 +200,28 @@ export default function Home() {
                                         {song.artiste}
                                     </button>
                                     
-                                    {song.categorie && (
+                                    {/* CONDITION : Si MASS existe, on l'affiche. Sinon CATEGORIE */}
+                                    {(song.mass || song.categorie) && (
                                         <>
                                             <span className="text-gray-300 dark:text-slate-700">•</span>
-                                            <button 
-                                                onClick={(e) => handleCategoryClick(e, song.categorie!)}
-                                                className="hover:text-orange-600 dark:hover:text-orange-400 hover:underline truncate uppercase"
-                                            >
-                                                {song.categorie}
-                                            </button>
+                                            {song.mass ? (
+                                                <span className="truncate uppercase text-gray-500 dark:text-gray-400">
+                                                    {song.mass}
+                                                </span>
+                                            ) : (
+                                                <button 
+                                                    onClick={(e) => handleCategoryClick(e, song.categorie!)}
+                                                    className="hover:text-orange-600 dark:hover:text-orange-400 hover:underline truncate uppercase"
+                                                >
+                                                    {song.categorie}
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Clé : Juste la lettre, très discret */}
+                            {/* CLÉ */}
                             <div className="flex-shrink-0">
                                 <span className="text-xs font-bold text-slate-400 dark:text-slate-600 w-6 text-center inline-block">
                                     {song.cle}

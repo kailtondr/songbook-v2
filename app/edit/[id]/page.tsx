@@ -1,8 +1,7 @@
-// Fichier: app/edit/[id]/page.tsx
 'use client';
 
 import { useState, useEffect, use, useRef } from 'react';
-import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -25,15 +24,21 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
   const [searchingYt, setSearchingYt] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
+  // Champs du chant
   const [titre, setTitre] = useState('');
   const [artiste, setArtiste] = useState('');
   const [cle, setCle] = useState('C');
   const [contenu, setContenu] = useState('');
   const [categorie, setCategorie] = useState('');
+  const [mass, setMass] = useState(''); 
   const [youtube, setYoutube] = useState('');
   const [audio, setAudio] = useState('');
 
-  // 1. Charger
+  // Suggestions pour l'autocomplétion
+  const [existingMasses, setExistingMasses] = useState<string[]>([]);
+  const [existingArtists, setExistingArtists] = useState<string[]>([]);
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
@@ -48,12 +53,32 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
           setCle(data.cle || 'C');
           setContenu(data.contenu || '');
           setCategorie(data.categorie || '');
+          setMass(data.mass || ''); 
           setYoutube(data.youtube || '');
           setAudio(data.audio || '');
         } else {
           alert("Chant introuvable");
           router.push('/');
+          return;
         }
+
+        const allSongsSnap = await getDocs(collection(db, "songs"));
+        
+        const uniqueMasses = new Set<string>();
+        const uniqueArtists = new Set<string>();
+        const uniqueCategories = new Set<string>();
+
+        allSongsSnap.docs.forEach(doc => {
+            const d = doc.data();
+            if (d.mass && typeof d.mass === 'string' && d.mass.trim() !== '') uniqueMasses.add(d.mass.trim());
+            if (d.artiste && typeof d.artiste === 'string' && d.artiste.trim() !== '') uniqueArtists.add(d.artiste.trim());
+            if (d.categorie && typeof d.categorie === 'string' && d.categorie.trim() !== '') uniqueCategories.add(d.categorie.trim());
+        });
+
+        setExistingMasses(Array.from(uniqueMasses).sort());
+        setExistingArtists(Array.from(uniqueArtists).sort());
+        setExistingCategories(Array.from(uniqueCategories).sort());
+
       } catch (e) {
         console.error("Erreur chargement:", e);
       } finally {
@@ -63,24 +88,17 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
     fetchData();
   }, [id, router]);
 
-  // --- RECHERCHE YOUTUBE VIA LIBRAIRIE ---
   const autoFillYoutube = async () => {
     if (!titre) return alert("Remplissez d'abord le titre.");
-    
     if (youtube && !confirm("Un lien existe déjà. Remplacer par le premier résultat trouvé ?")) return;
 
     setSearchingYt(true);
     try {
-        // Cette action utilise maintenant 'yt-search' sur le serveur
         const foundUrl = await searchYoutubeAction(artiste, titre);
-        
         if (foundUrl) {
             setYoutube(foundUrl);
         } else {
-            // Ne devrait quasiment jamais arriver avec yt-search
-            if(confirm("Aucune vidéo trouvée. Ouvrir YouTube manuellement ?")) {
-                searchYoutubeManual();
-            }
+            if(confirm("Aucune vidéo trouvée. Ouvrir YouTube manuellement ?")) searchYoutubeManual();
         }
     } catch (e) {
         console.error("Erreur autoFill:", e);
@@ -135,7 +153,7 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
     try {
       const docRef = doc(db, "songs", id);
       await updateDoc(docRef, {
-        titre, artiste, cle, contenu, categorie, youtube, audio,
+        titre, artiste, cle, contenu, categorie, mass, youtube, audio,
         updatedAt: new Date()
       });
       router.push(`/song/${id}`);
@@ -159,29 +177,45 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-32 transition-colors duration-300">
-      <header className="bg-white dark:bg-slate-900 sticky top-0 z-30 px-4 py-3 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
-        <Link href={`/song/${id}`} className="text-gray-500 dark:text-gray-400 font-bold text-sm">Annuler</Link>
-        <h1 className="font-bold text-slate-800 dark:text-white">Modifier</h1>
-        <button onClick={handleUpdate} disabled={saving} className="text-orange-600 dark:text-orange-400 font-bold text-sm disabled:opacity-50">
-            {saving ? '...' : 'Sauvegarder'}
-        </button>
-      </header>
+      
+      {/* HEADER + TOOLBAR EN FIXE (Sticky) */}
+      <div className="sticky top-0 z-40 bg-gray-50 dark:bg-slate-950 shadow-sm">
+          <header className="bg-white dark:bg-slate-900 px-4 py-3 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
+            <Link href={`/song/${id}`} className="text-gray-500 dark:text-gray-400 font-bold text-sm">Annuler</Link>
+            <h1 className="font-bold text-slate-800 dark:text-white">Modifier</h1>
+            <button onClick={handleUpdate} disabled={saving} className="text-orange-600 dark:text-orange-400 font-bold text-sm disabled:opacity-50">
+                {saving ? '...' : 'Sauvegarder'}
+            </button>
+          </header>
+          <ChordToolbar content={contenu} onInsert={handleInsert} />
+      </div>
 
-      <ChordToolbar content={contenu} onInsert={handleInsert} />
-
-      <div className="p-4 space-y-4 max-w-lg mx-auto">
+      {/* CONTENEUR PRINCIPAL : PLEINE LARGEUR (w-full) */}
+      <div className="p-4 space-y-4 w-full">
         
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 space-y-3">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 space-y-4">
             <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Titre</label>
                 <input type="text" className="w-full text-lg font-bold border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent"
                     value={titre} onChange={e => setTitre(e.target.value)} />
             </div>
+            
+            <div>
+                <label className="block text-xs font-bold text-orange-600 dark:text-orange-400 mb-1 uppercase flex justify-between">
+                    <span>Ordinaire / Collection</span>
+                    <span className="text-[9px] opacity-70 font-normal normal-case">Ex: Messe de la Grâce</span>
+                </label>
+                <input type="text" list="masses-suggestions" className="w-full text-sm font-bold border-b border-orange-200 dark:border-orange-900/50 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-slate-700"
+                    placeholder="Sélectionnez ou tapez..." value={mass} onChange={e => setMass(e.target.value)} />
+                <datalist id="masses-suggestions">{existingMasses.map(m => <option key={m} value={m} />)}</datalist>
+            </div>
+
             <div className="flex gap-3">
                 <div className="flex-1">
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Artiste</label>
-                    <input type="text" className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent"
+                    <input type="text" list="artists-suggestions" className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent"
                         value={artiste} onChange={e => setArtiste(e.target.value)} />
+                    <datalist id="artists-suggestions">{existingArtists.map(a => <option key={a} value={a} />)}</datalist>
                 </div>
                 <div className="w-24">
                     <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Clé</label>
@@ -191,64 +225,41 @@ export default function EditSong({ params }: { params: Promise<{ id: string }> }
                     </select>
                 </div>
             </div>
+             
              <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Catégorie</label>
-                <input type="text" className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent"
+                <input type="text" list="categories-suggestions" className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent"
                     value={categorie} onChange={e => setCategorie(e.target.value)} />
+                <datalist id="categories-suggestions">{existingCategories.map(c => <option key={c} value={c} />)}</datalist>
             </div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 space-y-3">
-            <h3 className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase flex items-center gap-2">
-                <span>🎵 Liens Multimédia</span>
-            </h3>
-            
-            {/* YOUTUBE */}
+            <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-2"><span>🎵 Liens Multimédia</span></h3>
             <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Lien YouTube</label>
                 <div className="flex gap-2">
-                    <input type="text" placeholder="https://youtube.com/..." 
-                        className="flex-1 text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                    <input type="text" placeholder="https://youtube.com/..." className="flex-1 text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         value={youtube} onChange={e => setYoutube(e.target.value)} />
-                    
-                    <button 
-                        type="button" 
-                        onClick={autoFillYoutube} 
-                        disabled={searchingYt}
-                        className="bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 text-orange-600 dark:text-orange-400 p-2 rounded-lg transition-colors flex items-center justify-center min-w-[36px]"
-                        title="Trouver automatiquement la vidéo"
-                    >
-                        {searchingYt ? (
-                            <div className="w-4 h-4 border-2 border-orange-600/30 border-t-orange-600 rounded-full animate-spin"></div>
-                        ) : (
-                            <IconMagic />
-                        )}
+                    <button type="button" onClick={autoFillYoutube} disabled={searchingYt} className="bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 text-orange-600 dark:text-orange-400 p-2 rounded-lg transition-colors flex items-center justify-center min-w-[36px]">
+                        {searchingYt ? <div className="w-4 h-4 border-2 border-orange-600/30 border-t-orange-600 rounded-full animate-spin"></div> : <IconMagic />}
                     </button>
-                    
-                    <button type="button" onClick={searchYoutubeManual} className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 text-gray-600 dark:text-gray-400 p-2 rounded-lg transition-colors" title="Ouvrir YouTube">🔍</button>
+                    <button type="button" onClick={searchYoutubeManual} className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 text-gray-600 dark:text-gray-400 p-2 rounded-lg transition-colors">🔍</button>
                 </div>
             </div>
-
             <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Lien Audio (MP3/Nextcloud)</label>
-                <input type="text" placeholder="https://..." 
-                    className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                    value={audio} onChange={e => setAudio(e.target.value)} onBlur={handleAudioBlur} 
-                />
+                <input type="text" placeholder="https://..." className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                    value={audio} onChange={e => setAudio(e.target.value)} onBlur={handleAudioBlur} />
             </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col h-[60vh]">
+        {/* BLOC PAROLES AGRANDI */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col min-h-[85vh]">
             <div className="flex justify-between items-center mb-2">
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Paroles et Accords</label>
-                <button 
-                    onClick={applyAutoFix}
-                    className="text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-1 rounded-lg font-bold hover:bg-orange-200 transition-colors"
-                >
-                    🪄 Corriger *
-                </button>
+                <button onClick={applyAutoFix} className="text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-1 rounded-lg font-bold hover:bg-orange-200 transition-colors">🪄 Corriger *</button>
             </div>
-            
             <textarea 
                 ref={textareaRef}
                 className="flex-1 w-full font-mono text-sm leading-relaxed p-2 bg-gray-50 dark:bg-slate-950 rounded-lg border border-transparent outline-none resize-none text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-orange-500/20"
