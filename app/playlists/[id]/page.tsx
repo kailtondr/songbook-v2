@@ -91,8 +91,13 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
         if (!currentSlotSongs.includes(song.id)) newSlots[targetSlot] = [...currentSlotSongs, song.id];
     }
     await updateDoc(doc(db, "playlists", id), { songs: newSongsIds, slots: newSlots });
-    setPlaylist(prev => ({ ...prev, songs: newSongsIds, slots: newSlots }));
-    if (!songs.find(s => s.id === song.id)) setSongs(prev => [...prev, song]);
+    
+    // CORRECTION TYPE: Ajout de (prev: any)
+    setPlaylist((prev: any) => ({ ...prev, songs: newSongsIds, slots: newSlots }));
+    
+    // CORRECTION TYPE: Ajout de (prev: any[])
+    if (!songs.find(s => s.id === song.id)) setSongs((prev: any[]) => [...prev, song]);
+    
     setShowSearch(false); setSearchTerm('');
   };
 
@@ -265,7 +270,6 @@ export default function PlaylistDetail({ params }: { params: Promise<{ id: strin
                                 {/* LISTE COMPACTE */}
                                 <div className="pl-2 border-l-2 border-gray-100 dark:border-slate-800 ml-1">
                                     {stepSongs.length === 0 ? (
-                                        // Optionnel : on peut mettre un texte vide très petit ou rien du tout
                                         <div onClick={() => openSearch(step)} className="text-[10px] text-gray-300 italic py-1 cursor-pointer hover:text-orange-500">Vide</div>
                                     ) : (
                                         stepSongs.map(song => (
