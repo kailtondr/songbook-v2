@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/authContext';
 import { parseChordPro, transposeChord, guessPreferFlats, ChordLine, ChordToken } from '@/lib/musicEngine';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // --- Icônes ---
 const IconBack = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
@@ -36,6 +36,12 @@ interface SongData {
     audio?: string;
 }
 
+// Interface pour la navigation
+interface NavSong {
+    id: string;
+    titre: string;
+}
+
 const FONTS = { helvetica: "font-sans", georgia: "font-serif", courier: "font-mono" };
 const CHORD_COLORS = { red: "text-red-600 dark:text-red-400", orange: "text-orange-600 dark:text-orange-400", blue: "text-blue-600 dark:text-blue-400", black: "text-black dark:text-white" };
 type ChordColorKey = keyof typeof CHORD_COLORS;
@@ -44,12 +50,18 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const { id } = use(params);
   const { user } = useAuth();
   const router = useRouter(); 
+  const searchParams = useSearchParams();
+  const playlistId = searchParams.get('playlistId'); 
   useWakeLock();
 
   const [status, setStatus] = useState<'LOADING' | 'SUCCESS' | 'ERROR'>('LOADING');
   const [errorMessage, setErrorMessage] = useState('');
   const [song, setSong] = useState<SongData | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  
+  // Navigation & Contexte
+  const [nav, setNav] = useState<{ prev: NavSong | null; next: NavSong | null }>({ prev: null, next: null });
+  const [navContext, setNavContext] = useState<{ title: string; subtitle: string } | null>(null); // NOUVEAU
 
   // Affichage
   const [semitones, setSemitones] = useState(0);
@@ -72,7 +84,6 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
   const [scrollSpeed, setScrollSpeed] = useState(40); 
   const displaySpeed = Math.round((250 - scrollSpeed) / 2.45);
   
-  // État Plein Écran
   const [isFullScreen, setIsFullScreen] = useState(false);
   const lastTap = useRef<number>(0);
 
@@ -126,6 +137,54 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
     };
     loadData();
   }, [id, user]);
+
+  // CHARGEMENT DE LA NAVIGATION & CONTEXTE
+  useEffect(() => {
+    if(status === 'SUCCESS' && song) {
+        const fetchNeighbors = async () => {
+            try {
+                let allDocs = [];
+
+                if (playlistId) {
+                    // CAS 1: NAVIGATION PLAYLIST
+                    const plDoc = await getDoc(doc(db, 'playlists', playlistId));
+                    if (plDoc.exists()) {
+                        const plData = plDoc.data();
+                        const songIds: string[] = plData.songs || [];
+                        
+                        // Définir le contexte (Titre + Date)
+                        const dateFormatted = plData.date ? new Date(plData.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                        setNavContext({ title: plData.name, subtitle: dateFormatted });
+
+                        // Récupérer les voisins
+                        const promises = songIds.map(async (sid) => {
+                            const d = await getDoc(doc(db, 'songs', sid));
+                            return d.exists() ? { id: d.id, titre: d.data().titre } : null;
+                        });
+                        const results = await Promise.all(promises);
+                        allDocs = results.filter(r => r !== null) as NavSong[];
+                    }
+                } else {
+                    // CAS 2: NAVIGATION GLOBALE
+                    setNavContext({ title: "Chantez le Seigneur", subtitle: "" }); // Contexte par défaut
+                    
+                    const q = query(collection(db, "songs"), orderBy("titre"));
+                    const snap = await getDocs(q);
+                    allDocs = snap.docs.map(d => ({ id: d.id, titre: d.data().titre }));
+                }
+                
+                const currentIndex = allDocs.findIndex(d => d.id === id);
+                if (currentIndex !== -1) {
+                    setNav({
+                        prev: currentIndex > 0 ? allDocs[currentIndex - 1] : null,
+                        next: currentIndex < allDocs.length - 1 ? allDocs[currentIndex + 1] : null
+                    });
+                }
+            } catch (e) { console.error("Err nav", e); }
+        };
+        fetchNeighbors();
+    }
+  }, [status, song, id, playlistId]);
 
   const goToArtist = () => { if(song?.artiste) router.push(`/artist/${encodeURIComponent(song.artiste)}`); };
   
@@ -282,12 +341,9 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
 
                         const chordVal = group.chord ? (showChords ? transposeChord(group.chord.originalChord!, semitones, preferFlat) : null) : null;
                         const lyricsVal = group.lyrics ? group.lyrics.value : "\u00A0";
-                        
-                        // ICI : On vérifie si l'accord est "solitaire" (isSpacer) pour rajouter du padding
                         const spacerClass = group.chord?.isSpacer ? "pr-4" : "pr-0";
 
                         return (
-                            // CHANGEMENT MAJEUR : items-start au lieu de items-center
                             <div key={j} className={`flex flex-col items-start min-w-[1ch] ${spacerClass}`}>
                                 {showChords && (
                                     <span className={`text-[0.95em] font-bold mb-0.5 select-none leading-none h-[1.2em] whitespace-nowrap transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>
@@ -409,9 +465,46 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
         
         <main className="w-full" style={{ fontSize: `${fontSize}px` }}>
             {contentDisplay}
-            <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800 text-center pb-8 flex justify-center items-center gap-4 flex-wrap">
-                <p className="text-gray-400 dark:text-gray-500 text-sm italic">© {song?.artiste}</p>
+            
+            {/* --- NAVIGATION FOOTER --- */}
+            <div className="mt-16 pt-8 border-t border-gray-100 dark:border-slate-800 pb-8 flex flex-col gap-6 print:hidden">
+                
+                {/* CONTEXTE NAVIGATION */}
+                {navContext && (
+                    <div className="text-center">
+                        <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1">{navContext.title}</h3>
+                        {navContext.subtitle && <p className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">{navContext.subtitle}</p>}
+                    </div>
+                )}
+
+                {/* BOUTONS NAV */}
+                <div className="flex justify-between items-center gap-4">
+                    {nav.prev ? (
+                        <Link href={`/song/${nav.prev.id}${playlistId ? `?playlistId=${playlistId}` : ''}`} className="flex-1 max-w-[45%] group flex flex-col items-start text-left bg-gray-50 dark:bg-slate-900 p-3 rounded-xl border border-gray-100 dark:border-slate-800 hover:border-orange-200 dark:hover:border-slate-700 transition-all">
+                             <div className="flex items-center gap-2 text-gray-400 group-hover:text-orange-600 text-xs font-bold uppercase mb-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
+                                Précédent
+                             </div>
+                             <span className="text-sm font-bold text-slate-800 dark:text-white truncate w-full uppercase">{nav.prev.titre}</span>
+                        </Link>
+                    ) : <div className="flex-1"></div>}
+
+                    {nav.next ? (
+                        <Link href={`/song/${nav.next.id}${playlistId ? `?playlistId=${playlistId}` : ''}`} className="flex-1 max-w-[45%] group flex flex-col items-end text-right bg-gray-50 dark:bg-slate-900 p-3 rounded-xl border border-gray-100 dark:border-slate-800 hover:border-orange-200 dark:hover:border-slate-700 transition-all">
+                             <div className="flex items-center gap-2 text-gray-400 group-hover:text-orange-600 text-xs font-bold uppercase mb-1">
+                                Suivant
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                             </div>
+                             <span className="text-sm font-bold text-slate-800 dark:text-white truncate w-full uppercase">{nav.next.titre}</span>
+                        </Link>
+                    ) : <div className="flex-1"></div>}
+                </div>
+
+                <div className="text-center mt-2">
+                    <p className="text-gray-400 dark:text-gray-500 text-sm italic">© {song?.artiste}</p>
+                </div>
             </div>
+
         </main>
       </div>
 

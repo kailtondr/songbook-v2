@@ -100,18 +100,35 @@ export const guessPreferFlats = (key: string): boolean => {
     return flatKeys.includes(key.trim());
 };
 
+// --- FONCTION CORRECTION SÉCURISÉE ---
 export const cleanupChorusTags = (text: string): string => {
   if (!text) return "";
-  const hasExistingTags = /\{(soc|start_of_chorus|eoc|end_of_chorus)\}/i.test(text);
-  if (hasExistingTags) return text.replace(/^\s*\*\s?/gm, '');
 
-  const lines = text.split('\n');
+  // 1. SUPPRESSION CIBLÉE DES PARASITES
+  // Regex : /\[\s*[|│%]\s*\]/g
+  // Traduction : Cherche un crochet ouvert [,
+  // puis éventuellement des espaces \s*,
+  // puis SOIT une barre verticale |, SOIT une barre graphique │, SOIT un %,
+  // puis éventuellement des espaces \s*,
+  // puis un crochet fermé ].
+  // CELA NE TOUCHE PAS AU SLASH / DONC D/F# EST SAUF.
+  let cleanText = text.replace(/\[\s*[|│%]\s*\]/g, ''); 
+
+  // 2. Gestion des refrains (étoiles)
+  const hasExistingTags = /\{(soc|start_of_chorus|eoc|end_of_chorus)\}/i.test(cleanText);
+
+  if (hasExistingTags) {
+    return cleanText.replace(/^\s*\*\s?/gm, '');
+  }
+
+  const lines = cleanText.split('\n');
   let result: string[] = [];
   let inChorus = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const isStarLine = /^\s*\*/.test(line);
+
     if (isStarLine) {
       if (!inChorus) { result.push('{soc}'); inChorus = true; }
       result.push(line.replace(/^\s*\*\s?/, ''));
@@ -121,5 +138,6 @@ export const cleanupChorusTags = (text: string): string => {
     }
   }
   if (inChorus) result.push('{eoc}');
+  
   return result.join('\n');
 };
