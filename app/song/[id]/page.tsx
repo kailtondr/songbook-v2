@@ -283,13 +283,12 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
                         const chordVal = group.chord ? (showChords ? transposeChord(group.chord.originalChord!, semitones, preferFlat) : null) : null;
                         const lyricsVal = group.lyrics ? group.lyrics.value : "\u00A0";
                         
-                        // DETECTION DE L'ACCORD "SOLITAIRE" (SPACER)
-                        // Si l'accord est marqué "isSpacer" (pas de paroles), on rajoute du padding-right (pr-4)
-                        // Sinon, on met juste un petit espace de sécurité (pr-0.5) pour ne pas casser les mots
+                        // ICI : On vérifie si l'accord est "solitaire" (isSpacer) pour rajouter du padding
                         const spacerClass = group.chord?.isSpacer ? "pr-4" : "pr-0";
 
                         return (
-                            <div key={j} className={`flex flex-col items-center min-w-[1ch] ${spacerClass}`}>
+                            // CHANGEMENT MAJEUR : items-start au lieu de items-center
+                            <div key={j} className={`flex flex-col items-start min-w-[1ch] ${spacerClass}`}>
                                 {showChords && (
                                     <span className={`text-[0.95em] font-bold mb-0.5 select-none leading-none h-[1.2em] whitespace-nowrap transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>
                                         {chordVal || "."}

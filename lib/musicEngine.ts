@@ -5,22 +5,18 @@ export interface ChordToken {
   type: ChordTokenType;
   value: string;
   originalChord?: string;
-  isSpacer?: boolean; // NOUVEAU : Indique si l'accord doit être espacé
+  isSpacer?: boolean; 
 }
 
 export type ChordLine = ChordToken[];
 
-// --- CONSTANTES & LOGIQUE INTERNE ---
+// --- LOGIQUE INTERNE ---
 const NOTES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const NOTES_FLAT  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
-const ENHARMONIC_MAP: Record<string, string> = { 
-  "E#": "F", "B#": "C", "CB": "B", "FB": "E" 
-};
+const ENHARMONIC_MAP: Record<string, string> = { "E#": "F", "B#": "C", "CB": "B", "FB": "E" };
 
-const normalizeNote = (note: string): string => {
-  return note.replace(/♯/g, "#").replace(/♭/g, "b").replace(/♮/g, "").trim();
-};
+const normalizeNote = (note: string): string => note.replace(/♯/g, "#").replace(/♭/g, "b").replace(/♮/g, "").trim();
 
 const getNoteIndex = (note: string): number => {
   const n = normalizeNote(note).toUpperCase();
@@ -45,9 +41,7 @@ export const transposeChord = (chord: string, semitones: number, preferFlat: boo
   if (semitones === 0) return chord;
   if (chord.includes('/')) {
     const parts = chord.split('/');
-    if (parts.length === 2) {
-      return `${transposeChord(parts[0], semitones, preferFlat)}/${transposeChord(parts[1], semitones, preferFlat)}`;
-    }
+    if (parts.length === 2) return `${transposeChord(parts[0], semitones, preferFlat)}/${transposeChord(parts[1], semitones, preferFlat)}`;
   }
   const match = normalizeNote(chord).match(/^([A-G][#b]?)(.*)$/i);
   if (!match) return chord;
@@ -63,26 +57,19 @@ export const parseChordPro = (content: string): ChordLine[] => {
     const cleanLine = line.trim();
     const tokens: ChordToken[] = [];
 
-    // 1. Blocs spéciaux
+    // Blocs spéciaux
     if (cleanLine.match(/^\{(soc|start_of_chorus)\}/i)) return [{ type: 'chorus_start', value: '' }];
     if (cleanLine.match(/^\{(eoc|end_of_chorus)\}/i)) return [{ type: 'chorus_end', value: '' }];
 
-    // 2. Commentaires et Headers
-    if (cleanLine.startsWith('{') || cleanLine.startsWith('(')) {
-       return [{ type: 'comment', value: cleanLine.replace(/[{}]/g, '') }];
-    }
-    if (cleanLine.startsWith('#')) {
-        return [{ type: 'header', value: cleanLine.replace(/#/g, '') }];
-    }
-    if (cleanLine === '') {
-        return [{ type: 'space', value: '' }];
-    }
+    // Commentaires et Headers
+    if (cleanLine.startsWith('{') || cleanLine.startsWith('(')) return [{ type: 'comment', value: cleanLine.replace(/[{}]/g, '') }];
+    if (cleanLine.startsWith('#')) return [{ type: 'header', value: cleanLine.replace(/#/g, '') }];
+    if (cleanLine === '') return [{ type: 'space', value: '' }];
 
-    // 3. Parsing des accords [Am]
+    // Parsing
     const regex = /\[([^\]]+)\]([^\[]*)/g;
     let match;
 
-    // Texte avant le premier accord
     const firstBracket = cleanLine.indexOf('[');
     if (firstBracket > 0) {
        tokens.push({ type: 'lyrics', value: cleanLine.substring(0, firstBracket) });
@@ -93,28 +80,17 @@ export const parseChordPro = (content: string): ChordLine[] => {
 
     while ((match = regex.exec(cleanLine)) !== null) {
       const chordName = match[1];
-      const suffix = match[2]; // Le texte juste après l'accord
-
-      // LOGIQUE INTELLIGENTE :
-      // Si le suffixe est vide (ex: [C][D]) ou juste des espaces, c'est un accord "Spacer".
-      // Sinon, c'est un accord lié à une syllabe (ex: [C]Al[D]lo).
+      const suffix = match[2];
       const isSpacer = (!suffix || suffix.trim().length === 0);
 
-      tokens.push({ 
-          type: 'chord', 
-          value: chordName, 
-          originalChord: chordName,
-          isSpacer: isSpacer // On marque l'accord
-      });
+      tokens.push({ type: 'chord', value: chordName, originalChord: chordName, isSpacer: isSpacer });
       
       if (suffix && suffix.length > 0) {
         tokens.push({ type: 'lyrics', value: suffix });
       } else {
-        // Si vide, on met un espace insécable pour que la colonne existe
         tokens.push({ type: 'lyrics', value: '\u00A0' }); 
       }
     }
-
     return tokens;
   });
 };
