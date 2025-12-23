@@ -7,8 +7,6 @@ import { useAuth } from '@/lib/authContext';
 import Link from 'next/link';
 import SwipeableSongRow from '@/components/SwipeableSongRow';
 
-type FilterMode = 'all' | 'favorites' | 'artists' | 'categories';
-
 export default function Home() {
   const { user } = useAuth();
   
@@ -18,13 +16,13 @@ export default function Home() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ÉTATS DE FILTRES
+  // ÉTATS DE FILTRES (Initialisés à vide par défaut)
   const [search, setSearch] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // ÉTATS MODALES
+  // ÉTATS DES MODALES
   const [showArtistModal, setShowArtistModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -33,7 +31,31 @@ export default function Home() {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [isCreatingPl, setIsCreatingPl] = useState(false);
 
-  // 1. CHARGEMENT INITIAL
+  // 0. CHARGER LES FILTRES SAUVEGARDÉS (Au démarrage)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const savedFilters = localStorage.getItem('sb_filters');
+        if (savedFilters) {
+            try {
+                const parsed = JSON.parse(savedFilters);
+                if (parsed.search) setSearch(parsed.search);
+                if (parsed.showFavoritesOnly) setShowFavoritesOnly(parsed.showFavoritesOnly);
+                if (parsed.selectedArtist) setSelectedArtist(parsed.selectedArtist);
+                if (parsed.selectedCategory) setSelectedCategory(parsed.selectedCategory);
+            } catch (e) { console.error("Erreur lecture filtres", e); }
+        }
+    }
+  }, []);
+
+  // 0. SAUVEGARDER LES FILTRES (À chaque changement)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const filters = { search, showFavoritesOnly, selectedArtist, selectedCategory };
+        localStorage.setItem('sb_filters', JSON.stringify(filters));
+    }
+  }, [search, showFavoritesOnly, selectedArtist, selectedCategory]);
+
+  // 1. CHARGEMENT DES CHANTS
   useEffect(() => {
     const fetchSongs = async () => {
       const q = query(collection(db, "songs"), orderBy("titre"));
@@ -58,7 +80,7 @@ export default function Home() {
     fetchFavorites();
   }, [user]);
 
-  // 2. EXTRACTION DYNAMIQUE
+  // 2. EXTRACTION DYNAMIQUE DES LISTES
   const availableArtists = useMemo(() => {
     const artists = new Set(songs.map(s => s.artiste ? s.artiste.trim() : "Inconnu").filter(Boolean));
     return Array.from(artists).sort();
@@ -73,18 +95,31 @@ export default function Home() {
   useEffect(() => {
     let result = [...songs];
 
+    // A. Recherche
     if (search) {
       const lowerSearch = search.toLowerCase();
       result = result.filter(song =>
         song.titre?.toLowerCase().includes(lowerSearch) ||
         song.artiste?.toLowerCase().includes(lowerSearch) ||
-        song.contenu?.toLowerCase().includes(lowerSearch)
+        song.contenu?.toLowerCase().includes(lowerSearch) || 
+        song.categorie?.toLowerCase().includes(lowerSearch)
       );
     }
 
-    if (showFavoritesOnly) result = result.filter(s => favorites.includes(s.id));
-    if (selectedArtist) result = result.filter(s => (s.artiste || "Inconnu") === selectedArtist);
-    if (selectedCategory) result = result.filter(s => (s.categorie || "Autre") === selectedCategory);
+    // B. Favoris
+    if (showFavoritesOnly) {
+      result = result.filter(s => favorites.includes(s.id));
+    }
+
+    // C. Artiste
+    if (selectedArtist) {
+      result = result.filter(s => (s.artiste || "Inconnu") === selectedArtist);
+    }
+
+    // D. Catégorie
+    if (selectedCategory) {
+      result = result.filter(s => (s.categorie || "Autre") === selectedCategory);
+    }
 
     setFilteredSongs(result);
   }, [search, songs, showFavoritesOnly, selectedArtist, selectedCategory, favorites]);
@@ -94,6 +129,7 @@ export default function Home() {
       try {
           await deleteDoc(doc(db, "songs", id));
           setSongs(prev => prev.filter(s => s.id !== id));
+          setFilteredSongs(prev => prev.filter(s => s.id !== id));
       } catch (e) { alert("Erreur suppression"); }
   };
 
@@ -125,17 +161,24 @@ export default function Home() {
       } catch (e) { alert("Erreur création"); }
   };
 
+  // FONCTION RESET
+  const resetFilters = () => {
+      setSearch('');
+      setSelectedArtist(null);
+      setSelectedCategory(null);
+      setShowFavoritesOnly(false);
+      // Le useEffect de sauvegarde va automatiquement nettoyer le localStorage car les états changent
+  };
+
   return (
     <main className="min-h-screen bg-white dark:bg-slate-950 pb-32">
       
-      {/* HEADER TYPE "IDEAL.PNG" (Police réduite à text-xl) */}
+      {/* HEADER */}
       <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 pt-3 pb-2 px-3 shadow-sm border-b border-gray-100 dark:border-slate-800">
         
-        {/* LIGNE 1 */}
         <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
                 <img src="/icon-192.png" alt="Logo" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
-                {/* CORRECTION ICI : text-xl au lieu de text-2xl */}
                 <h1 className="text-xl font-extrabold text-slate-800 dark:text-white tracking-tight">
                     Songbook <span className="text-orange-600">Chantez V.2</span>
                 </h1>
@@ -145,7 +188,6 @@ export default function Home() {
             </span>
         </div>
 
-        {/* LIGNE 2 : RECHERCHE */}
         <div className="relative mb-3">
             <input 
                 type="text" 
@@ -157,7 +199,6 @@ export default function Home() {
             <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         </div>
 
-        {/* LIGNE 3 : FILTRES */}
         <div className="flex gap-2">
             <button 
                 onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -196,12 +237,19 @@ export default function Home() {
                     <SwipeableSongRow key={song.id} song={song} onDelete={() => handleDeleteSong(song.id)} onAddToPlaylist={() => handleOpenPlaylistModal(song.id)} />
                 ))}
                 
-                {filteredSongs.length === 0 && <div className="flex flex-col items-center justify-center mt-10 text-gray-400"><p className="text-sm">Aucun chant trouvé</p><button onClick={() => { setSearch(''); setSelectedArtist(null); setSelectedCategory(null); setShowFavoritesOnly(false); }} className="mt-2 text-xs text-blue-500 font-bold underline">Réinitialiser les filtres</button></div>}
+                {filteredSongs.length === 0 && (
+                    <div className="flex flex-col items-center justify-center mt-10 text-gray-400">
+                        <p className="text-sm">Aucun chant trouvé</p>
+                        <button onClick={resetFilters} className="mt-2 text-xs text-blue-500 font-bold underline">Réinitialiser les filtres</button>
+                    </div>
+                )}
             </div>
         )}
       </div>
 
-      <Link href="/add" className="fixed bottom-6 right-6 w-14 h-14 bg-orange-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-orange-700 transition-transform active:scale-90 z-40"><svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg></Link>
+      <Link href="/add" className="fixed bottom-6 right-6 w-14 h-14 bg-orange-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-orange-700 transition-transform active:scale-90 z-40">
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+      </Link>
 
       {/* MODALES */}
       {showArtistModal && (
@@ -241,6 +289,7 @@ export default function Home() {
             </div>
         </div>
       )}
+
     </main>
   );
 }
