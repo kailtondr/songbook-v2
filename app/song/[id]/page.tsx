@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use, useMemo, useRef } from 'react';
+import { useEffect, useState, use, useMemo, useRef, Suspense } from 'react';
 import { doc, getDoc, collection, query, orderBy, getDocs, updateDoc, arrayUnion, arrayRemove, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/authContext';
@@ -36,18 +36,14 @@ interface SongData {
     audio?: string;
 }
 
-// Interface pour la navigation
-interface NavSong {
-    id: string;
-    titre: string;
-}
+interface NavSong { id: string; titre: string; }
 
 const FONTS = { helvetica: "font-sans", georgia: "font-serif", courier: "font-mono" };
 const CHORD_COLORS = { red: "text-red-600 dark:text-red-400", orange: "text-orange-600 dark:text-orange-400", blue: "text-blue-600 dark:text-blue-400", black: "text-black dark:text-white" };
 type ChordColorKey = keyof typeof CHORD_COLORS;
 
-export default function SongPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+// 1. LE COMPOSANT CONTENU (Logique)
+function SongContent({ id }: { id: string }) {
   const { user } = useAuth();
   const router = useRouter(); 
   const searchParams = useSearchParams();
@@ -138,43 +134,32 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
     loadData();
   }, [id, user]);
 
-  // CHARGEMENT DE LA NAVIGATION & CONTEXTE
   useEffect(() => {
     if(status === 'SUCCESS' && song) {
         const fetchNeighbors = async () => {
             try {
-                // CORRECTION ICI : On type explicitement allDocs comme un tableau de NavSong
                 let allDocs: NavSong[] = []; 
 
                 if (playlistId) {
-                    // CAS 1: NAVIGATION PLAYLIST
                     const plDoc = await getDoc(doc(db, 'playlists', playlistId));
                     if (plDoc.exists()) {
                         const plData = plDoc.data();
                         const songIds: string[] = plData.songs || [];
-                        
-                        // Définir le contexte (Titre + Date)
                         const dateFormatted = plData.date ? new Date(plData.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
                         setNavContext({ title: plData.name, subtitle: dateFormatted });
-
-                        // Récupérer les voisins
                         const promises = songIds.map(async (sid) => {
                             const d = await getDoc(doc(db, 'songs', sid));
-                            // On s'assure de typer le retour
                             return d.exists() ? { id: d.id, titre: d.data().titre } as NavSong : null;
                         });
                         const results = await Promise.all(promises);
                         allDocs = results.filter(r => r !== null) as NavSong[];
                     }
                 } else {
-                    // CAS 2: NAVIGATION GLOBALE
                     setNavContext({ title: "Chantez le Seigneur", subtitle: "" });
-                    
                     const q = query(collection(db, "songs"), orderBy("titre"));
                     const snap = await getDocs(q);
                     allDocs = snap.docs.map(d => ({ id: d.id, titre: d.data().titre } as NavSong));
                 }
-                
                 const currentIndex = allDocs.findIndex(d => d.id === id);
                 if (currentIndex !== -1) {
                     setNav({
@@ -331,35 +316,41 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
         >
             {section.type === 'chorus' && <div className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest mb-1 opacity-70">Refrain</div>}
 
-            {section.lines.map((line, i) => (
-                <div key={i} className={`flex flex-wrap items-end ${FONTS[selectedFont]} leading-relaxed transition-all ${!showChords ? 'mb-1' : 'mb-3'}`}>
-                    {line.map((group, j) => {
-                        if (group.token) {
-                            if (group.token.type === 'header') return <div key={j} className="w-full mt-2 mb-1 font-sans font-bold text-orange-600 dark:text-orange-400 print:text-black uppercase tracking-wider border-b border-orange-100 dark:border-orange-900/30 print:border-gray-300 pb-1 text-[0.9em]">{group.token.value}</div>;
-                            if (group.token.type === 'comment') return <div key={j} className="w-full text-gray-500 dark:text-gray-400 print:text-gray-600 italic mb-1 text-sm bg-gray-100 dark:bg-slate-800 print:bg-transparent p-1 rounded">{group.token.value}</div>;
-                            if (group.token.type === 'space') return <div key={j} className="w-full h-2"></div>;
-                            return null;
-                        }
+            {section.lines.map((line, i) => {
+                const hasChordsInLine = line.some(group => group.chord !== undefined);
 
-                        const chordVal = group.chord ? (showChords ? transposeChord(group.chord.originalChord!, semitones, preferFlat) : null) : null;
-                        const lyricsVal = group.lyrics ? group.lyrics.value : "\u00A0";
-                        const spacerClass = group.chord?.isSpacer ? "pr-4" : "pr-0";
+                return (
+                    // MODIF : leading-tight (interligne serré) et mb-1.5 (marge entre lignes réduite)
+                    <div key={i} className={`flex flex-wrap items-end ${FONTS[selectedFont]} leading-tight transition-all ${!showChords ? 'mb-1' : 'mb-1.5'}`}>
+                        {line.map((group, j) => {
+                            if (group.token) {
+                                if (group.token.type === 'header') return <div key={j} className="w-full mt-2 mb-1 font-sans font-bold text-orange-600 dark:text-orange-400 print:text-black uppercase tracking-wider border-b border-orange-100 dark:border-orange-900/30 print:border-gray-300 pb-1 text-[0.9em]">{group.token.value}</div>;
+                                if (group.token.type === 'comment') return <div key={j} className="w-full text-gray-500 dark:text-gray-400 print:text-gray-600 italic mb-1 text-sm bg-gray-100 dark:bg-slate-800 print:bg-transparent p-1 rounded">{group.token.value}</div>;
+                                if (group.token.type === 'space') return <div key={j} className="w-full h-2"></div>;
+                                return null;
+                            }
 
-                        return (
-                            <div key={j} className={`flex flex-col items-start min-w-[1ch] ${spacerClass}`}>
-                                {showChords && (
-                                    <span className={`text-[0.95em] font-bold mb-0.5 select-none leading-none h-[1.2em] whitespace-nowrap transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>
-                                        {chordVal || "."}
+                            const chordVal = group.chord ? (showChords ? transposeChord(group.chord.originalChord!, semitones, preferFlat) : null) : null;
+                            const lyricsVal = group.lyrics ? group.lyrics.value : "\u00A0";
+                            const spacerClass = group.chord?.isSpacer ? "pr-4" : "pr-0";
+
+                            return (
+                                <div key={j} className={`flex flex-col items-start min-w-[1ch] ${spacerClass}`}>
+                                    {showChords && hasChordsInLine && (
+                                        // MODIF : mb-0 et leading-none pour coller l'accord au texte
+                                        <span className={`text-[0.95em] font-bold mb-0 leading-none select-none h-[1.1em] whitespace-nowrap transition-opacity ${chordVal ? `${CHORD_COLORS[chordColor]} print:text-black` : 'opacity-0'}`}>
+                                            {chordVal || "."}
+                                        </span>
+                                    )}
+                                    <span className={`text-slate-800 dark:text-slate-200 print:text-black whitespace-pre ${section.type === 'chorus' ? 'font-black text-slate-900 dark:text-white' : ''}`}>
+                                        {lyricsVal}
                                     </span>
-                                )}
-                                <span className={`text-slate-800 dark:text-slate-200 print:text-black whitespace-pre ${section.type === 'chorus' ? 'font-black text-slate-900 dark:text-white' : ''}`}>
-                                    {lyricsVal}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            ))}
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            })}
         </div>
       ));
     } catch (renderError) { contentDisplay = <div>Erreur d'affichage</div>; }
@@ -471,7 +462,6 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
             {/* --- NAVIGATION FOOTER --- */}
             <div className="mt-16 pt-8 border-t border-gray-100 dark:border-slate-800 pb-8 flex flex-col gap-6 print:hidden">
                 
-                {/* CONTEXTE NAVIGATION */}
                 {navContext && (
                     <div className="text-center">
                         <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1">{navContext.title}</h3>
@@ -479,7 +469,6 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
                     </div>
                 )}
 
-                {/* BOUTONS NAV */}
                 <div className="flex justify-between items-center gap-4">
                     {nav.prev ? (
                         <Link href={`/song/${nav.prev.id}${playlistId ? `?playlistId=${playlistId}` : ''}`} className="flex-1 max-w-[45%] group flex flex-col items-start text-left bg-gray-50 dark:bg-slate-900 p-3 rounded-xl border border-gray-100 dark:border-slate-800 hover:border-orange-200 dark:hover:border-slate-700 transition-all">
@@ -551,5 +540,15 @@ export default function SongPage({ params }: { params: Promise<{ id: string }> }
         </div>
       )}
     </div>
+  );
+}
+
+// 2. EXPORT AVEC SUSPENSE (Essentiel pour build)
+export default function SongPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center text-gray-500">Chargement...</div>}>
+      <SongContent id={id} />
+    </Suspense>
   );
 }
