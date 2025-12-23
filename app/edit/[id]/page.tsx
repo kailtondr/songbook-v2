@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense, use } from 'react'; // "use" ajouté ici
+import { useState, useEffect, useRef, Suspense, use } from 'react';
 import { doc, getDoc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -15,7 +15,15 @@ const IconMagic = () => (
   </svg>
 );
 
-// 1. LE COMPOSANT DE CONTENU (Logique principale)
+// Helper pour extraire l'ID YouTube
+const getYoutubeId = (url: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+};
+
+// 1. LE COMPOSANT DE CONTENU
 function EditSongContent({ id }: { id: string }) {
   const router = useRouter();
   const searchParams = useSearchParams(); 
@@ -185,10 +193,12 @@ function EditSongContent({ id }: { id: string }) {
 
   if (loading) return <div className="flex h-screen items-center justify-center text-gray-500 dark:text-gray-400">Chargement...</div>;
 
+  const yId = getYoutubeId(youtube);
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-32 transition-colors duration-300">
       
-      {/* HEADER + TOOLBAR EN FIXE (Sticky) */}
+      {/* HEADER + TOOLBAR */}
       <div className="sticky top-0 z-40 bg-gray-50 dark:bg-slate-950 shadow-sm">
           <header className="bg-white dark:bg-slate-900 px-4 py-3 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
             <button onClick={() => router.back()} className="text-gray-500 dark:text-gray-400 font-bold text-sm">Annuler</button>
@@ -213,6 +223,7 @@ function EditSongContent({ id }: { id: string }) {
             </div>
         )}
 
+        {/* INFO PRINCIPALES */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 space-y-4">
             <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1 uppercase">Titre</label>
@@ -254,8 +265,11 @@ function EditSongContent({ id }: { id: string }) {
             </div>
         </div>
 
+        {/* LIENS + LECTEUR */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 space-y-3">
             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-2"><span>🎵 Liens Multimédia</span></h3>
+            
+            {/* Input YouTube */}
             <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Lien YouTube</label>
                 <div className="flex gap-2">
@@ -267,6 +281,20 @@ function EditSongContent({ id }: { id: string }) {
                     <button type="button" onClick={searchYoutubeManual} className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 text-gray-600 dark:text-gray-400 p-2 rounded-lg transition-colors">🔍</button>
                 </div>
             </div>
+
+            {/* --- LECTEUR EMBARQUÉ (Uniquement si lien valide) --- */}
+            {yId && (
+                <div className="relative w-full rounded-lg overflow-hidden bg-black aspect-video shadow-md border border-gray-200 dark:border-slate-700">
+                    <iframe 
+                        className="absolute top-0 left-0 w-full h-full" 
+                        src={`https://www.youtube.com/embed/${yId}?rel=0&playsinline=1`} 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowFullScreen
+                    ></iframe>
+                </div>
+            )}
+
+            {/* Input Audio */}
             <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Lien Audio (MP3/Nextcloud)</label>
                 <input type="text" placeholder="https://..." className="w-full text-sm border-b border-gray-200 dark:border-slate-700 pb-2 outline-none text-slate-800 dark:text-white bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
@@ -274,7 +302,7 @@ function EditSongContent({ id }: { id: string }) {
             </div>
         </div>
 
-        {/* BLOC PAROLES AGRANDI */}
+        {/* PAROLES (TEXTAREA) */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col min-h-[85vh]">
             <div className="flex justify-between items-center mb-2">
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Paroles et Accords</label>
@@ -299,7 +327,7 @@ function EditSongContent({ id }: { id: string }) {
   );
 }
 
-// 2. L'EXPORT PAR DÉFAUT QUI EMBALLE LE TOUT DANS SUSPENSE
+// 2. EXPORT
 export default function EditSongPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
