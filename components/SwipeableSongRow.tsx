@@ -14,7 +14,6 @@ export default function SwipeableSongRow({ song, onDelete, onAddToPlaylist }: Pr
   const controls = useAnimation();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Ouverture pour 3 boutons (environ 150px)
   const OPEN_VALUE = -150; 
 
   const handleDragEnd = async (event: any, info: PanInfo) => {
@@ -36,9 +35,9 @@ export default function SwipeableSongRow({ song, onDelete, onAddToPlaylist }: Pr
   };
 
   return (
-    <div className="relative w-full overflow-hidden border-b border-gray-200 dark:border-slate-800 last:border-0 bg-white dark:bg-slate-950">
+    <div className="relative w-full overflow-hidden border-b border-gray-100 dark:border-slate-800 last:border-0 bg-white dark:bg-slate-950">
       
-      {/* ARRIÈRE-PLAN (LES BOUTONS) */}
+      {/* ARRIÈRE-PLAN (BOUTONS) */}
       <div className="absolute top-0 right-0 bottom-0 flex w-[150px]">
         <Link href={`/edit/${song.id}`} onClick={closeSwipe} className="flex-1 bg-blue-500 flex items-center justify-center text-white">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -51,7 +50,7 @@ export default function SwipeableSongRow({ song, onDelete, onAddToPlaylist }: Pr
         </button>
       </div>
 
-      {/* AVANT-PLAN (DESIGN "IDEAL.PNG") */}
+      {/* AVANT-PLAN (CONTENU) */}
       <motion.div
         drag="x"
         dragConstraints={{ left: OPEN_VALUE, right: 0 }}
@@ -60,31 +59,25 @@ export default function SwipeableSongRow({ song, onDelete, onAddToPlaylist }: Pr
         animate={controls}
         className="relative bg-white dark:bg-slate-950 z-10 w-full"
       >
-        <Link href={`/song/${song.id}`} className="block py-3 pl-3 pr-2 active:bg-gray-50 dark:active:bg-slate-900 transition-colors">
+        <Link href={`/song/${song.id}`} className="block py-3 px-4 active:bg-gray-50 dark:active:bg-slate-900 transition-colors">
             <div className="flex items-start justify-between gap-2">
-                
-                {/* PARTIE GAUCHE : TITRE + INFO */}
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase text-[0.95rem] leading-tight mb-0.5 truncate">
+                    <h3 className="font-bold text-slate-800 dark:text-white uppercase text-sm leading-tight mb-0.5 truncate">
                         {song.titre}
                     </h3>
                     <div className="text-[10px] uppercase font-bold truncate flex items-center gap-1">
-                        {/* Artiste en GRIS (au lieu d'orange) */}
-                        <span className="text-gray-500 dark:text-gray-400">{song.artiste || "Inconnu"}</span>
-                        
+                        <span className="text-gray-400 dark:text-gray-500">{song.artiste || "Inconnu"}</span>
                         {song.categorie && (
                             <>
                                 <span className="text-gray-300">•</span>
-                                <span className="text-gray-400 dark:text-gray-500 font-medium">{song.categorie}</span>
+                                <span className="text-gray-300 dark:text-gray-600 font-medium">{song.categorie}</span>
                             </>
                         )}
                     </div>
                 </div>
-
-                {/* PARTIE DROITE : CLÉ (KEY) */}
                 {song.cle && (
                     <div className="flex flex-col items-end justify-center self-center pl-2">
-                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">
+                        <span className="text-xs font-bold text-gray-300 dark:text-slate-600 uppercase">
                             {song.cle}
                         </span>
                     </div>
