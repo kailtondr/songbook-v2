@@ -6,19 +6,43 @@ import { useAuth } from '@/lib/authContext';
 import { getAuth, signOut } from 'firebase/auth';
 import { collection, getDocs, getCountFromServer } from 'firebase/firestore';
 import { app, db } from '@/lib/firebase';
+import { exportData, importData } from '@/lib/backupService'; // <--- IMPORT DU SERVICE
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const [isDark, setIsDark] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  
+  // États pour Export/Import
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCat, setSelectedCat] = useState('');
+  const [importing, setImporting] = useState(false);
+
   const auth = getAuth(app);
 
   useEffect(() => {
+    // 1. Gestion du Thème Sombre
     if (typeof window !== 'undefined') {
       const isDarkMode = localStorage.getItem('theme') === 'dark' || 
         (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
       setIsDark(isDarkMode);
     }
+
+    // 2. Chargement des catégories pour le menu déroulant d'export
+    const loadCats = async () => {
+        try {
+            const snap = await getDocs(collection(db, "songs"));
+            const cats = new Set<string>();
+            snap.docs.forEach(d => { 
+                const cat = d.data().categorie;
+                if(cat) cats.add(cat.trim()); 
+            });
+            setCategories(Array.from(cats).sort());
+        } catch (e) {
+            console.error("Erreur chargement catégories", e);
+        }
+    };
+    loadCats();
   }, []);
 
   const toggleTheme = () => {
@@ -37,40 +61,58 @@ export default function SettingsPage() {
     signOut(auth);
   };
 
-  // --- FONCTION DE TÉLÉCHARGEMENT ROBUSTE ---
+  // --- FONCTION DE TÉLÉCHARGEMENT HORS-LIGNE (EXISTANTE) ---
   const handleDownloadOffline = async () => {
     if (!user) return;
-    
-    // 1. Vérification réseau
-    if (!navigator.onLine) {
-        return alert("⚠️ Vous n'êtes pas connecté à internet. Impossible de télécharger.");
-    }
-
-    if (!confirm("Télécharger la base de données complète pour l'usage hors-ligne ? (Cela peut prendre quelques secondes)")) return;
+    if (!navigator.onLine) return alert("⚠️ Vous n'êtes pas connecté à internet. Impossible de télécharger.");
+    if (!confirm("Télécharger la base de données complète pour l'usage hors-ligne ?")) return;
 
     setDownloading(true);
     try {
-        // 2. On tente d'abord de compter combien de chants on va récupérer (test de connexion)
         const coll = collection(db, "songs");
         const snapshot = await getCountFromServer(coll);
         const count = snapshot.data().count;
-
-        // 3. On récupère TOUS les documents.
-        // Grâce à la modification dans firebase.ts, Firestore va automatiquement
-        // stocker ces résultats dans IndexedDB (le cache du navigateur).
-        await getDocs(coll);
-        
-        // On peut aussi précharger les playlists si nécessaire
-        await getDocs(collection(db, "playlists"));
-
+        await getDocs(coll); // Force le cache
+        await getDocs(collection(db, "playlists")); // Force le cache playlists
         alert(`✅ Succès ! ${count} chants (et vos playlists) sont maintenant sécurisés dans votre appareil.`);
     } catch (e: any) {
         console.error("Erreur download:", e);
-        // Afficher l'erreur réelle pour comprendre le problème
         alert(`Erreur : ${e.message || "Problème inconnu"}`);
     } finally {
         setDownloading(false);
     }
+  };
+
+  // --- NOUVELLES FONCTIONS D'IMPORT/EXPORT ---
+  const handleExport = (type: 'all' | 'category') => {
+      if(type === 'category' && !selectedCat) return alert("Sélectionnez une catégorie.");
+      if(!confirm("Générer le fichier de sauvegarde ?")) return;
+      exportData(type, type === 'category' ? selectedCat : undefined);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if(!file) return;
+      
+      if(!confirm(`⚠️ ATTENTION : Vous allez importer des chants.\nSi un chant existe déjà (même ID), il sera écrasé.\n\nContinuer ?`)) {
+          e.target.value = ''; 
+          return;
+      }
+
+      setImporting(true);
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+          try {
+              const count = await importData(event.target?.result as string);
+              alert(`✅ Succès ! ${count} chants importés.`);
+              window.location.reload();
+          } catch (err) {
+              alert("Erreur: Le fichier est invalide ou corrompu.");
+          } finally {
+              setImporting(false);
+          }
+      };
+      reader.readAsText(file);
   };
 
   return (
@@ -81,7 +123,7 @@ export default function SettingsPage() {
 
       <div className="px-4 space-y-6 max-w-lg mx-auto">
         
-        {/* Section Compte */}
+        {/* 1. SECTION COMPTE (EXISTANTE) */}
         <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
             <h2 className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-100 dark:border-slate-800">Compte</h2>
             
@@ -126,7 +168,7 @@ export default function SettingsPage() {
             </div>
         </section>
 
-        {/* Section Apparence */}
+        {/* 2. SECTION APPARENCE (EXISTANTE) */}
         <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
             <h2 className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-100 dark:border-slate-800">Apparence</h2>
             <div className="p-4 flex items-center justify-between">
@@ -145,7 +187,48 @@ export default function SettingsPage() {
             </div>
         </section>
 
-        {/* Section Administration */}
+        {/* 3. NOUVELLE SECTION : IMPORT / EXPORT (AJOUTÉE) */}
+        {user && (
+            <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+                <h2 className="px-4 py-3 bg-blue-50 dark:bg-blue-900/10 text-xs font-bold text-blue-600 dark:text-blue-400 uppercase border-b border-blue-100 dark:border-blue-900/20">💾 Sauvegarde & Partage</h2>
+                
+                <div className="p-4 space-y-4">
+                    {/* EXPORT */}
+                    <div>
+                        <p className="text-sm font-bold text-slate-700 dark:text-white mb-2">📤 Exporter des chants</p>
+                        <div className="flex gap-2 mb-2">
+                            <button onClick={() => handleExport('all')} className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700">
+                                Tout exporter
+                            </button>
+                        </div>
+                        <div className="flex gap-2">
+                            <select className="flex-1 text-xs p-2 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 dark:text-white outline-none" value={selectedCat} onChange={e => setSelectedCat(e.target.value)}>
+                                <option value="">-- Par catégorie --</option>
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <button onClick={() => handleExport('category')} className="px-4 py-2 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors">
+                                OK
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="w-full h-px bg-gray-100 dark:bg-slate-800"></div>
+
+                    {/* IMPORT */}
+                    <div>
+                        <p className="text-sm font-bold text-slate-700 dark:text-white mb-2">📥 Importer (JSON)</p>
+                        <label className={`block w-full text-center py-3 border-2 border-dashed ${importing ? 'border-gray-400 bg-gray-100' : 'border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/10 cursor-pointer'} rounded-xl transition-colors`}>
+                            <input type="file" accept=".json" onChange={handleImportFile} disabled={importing} className="hidden" />
+                            <div className="text-blue-600 dark:text-blue-400 font-bold text-xs">
+                                {importing ? 'Importation en cours...' : 'Cliquez pour choisir un fichier'}
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+        )}
+
+        {/* 4. SECTION ADMINISTRATION (EXISTANTE) */}
         {user && (
             <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
                 <h2 className="px-4 py-3 bg-gray-50 dark:bg-slate-800/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-100 dark:border-slate-800">Administration</h2>
@@ -175,7 +258,7 @@ export default function SettingsPage() {
         )}
 
         <div className="text-center pt-8 text-xs text-gray-400 dark:text-gray-600">
-            <p>Songbook App v2.3</p>
+            <p>Songbook App v2.4</p>
         </div>
 
       </div>

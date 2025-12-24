@@ -95,14 +95,15 @@ export default function Home() {
   useEffect(() => {
     let result = [...songs];
 
-    // A. Recherche
+    // A. Recherche (Modifié pour inclure mass)
     if (search) {
       const lowerSearch = search.toLowerCase();
       result = result.filter(song =>
         song.titre?.toLowerCase().includes(lowerSearch) ||
         song.artiste?.toLowerCase().includes(lowerSearch) ||
         song.contenu?.toLowerCase().includes(lowerSearch) || 
-        song.categorie?.toLowerCase().includes(lowerSearch)
+        song.categorie?.toLowerCase().includes(lowerSearch) ||
+        song.mass?.toLowerCase().includes(lowerSearch) // ICI : On cherche aussi dans "mass"
       );
     }
 
@@ -167,7 +168,6 @@ export default function Home() {
       setSelectedArtist(null);
       setSelectedCategory(null);
       setShowFavoritesOnly(false);
-      // Le useEffect de sauvegarde va automatiquement nettoyer le localStorage car les états changent
   };
 
   return (
@@ -234,7 +234,16 @@ export default function Home() {
                 )}
 
                 {filteredSongs.map((song) => (
-                    <SwipeableSongRow key={song.id} song={song} onDelete={() => handleDeleteSong(song.id)} onAddToPlaylist={() => handleOpenPlaylistModal(song.id)} />
+                    <SwipeableSongRow 
+                        key={song.id} 
+                        song={{
+                            ...song,
+                            // AFFICHE LE NOM DE LA MESSE A LA PLACE DE LA CATEGORIE SI EXISTANT
+                            categorie: song.mass || song.categorie
+                        }} 
+                        onDelete={() => handleDeleteSong(song.id)} 
+                        onAddToPlaylist={() => handleOpenPlaylistModal(song.id)} 
+                    />
                 ))}
                 
                 {filteredSongs.length === 0 && (
